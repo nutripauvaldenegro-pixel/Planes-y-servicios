@@ -1,0 +1,17 @@
+{
+  "id": "620100-infra",
+  "name": "Despliegue, Pruebas e Infraestructura",
+  "description": "Costo de hacer que el software viva en internet y sea seguro (Equipo de Despliegue).",
+  "items": [
+    { "id": "I-01", "name": "Testing QA funcional en entorno de pruebas", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "I-02", "name": "Pruebas de validación de sistemas y estrés", "description": "Equipo de Despliegue", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "I-03", "name": "Optimización de velocidad y rendimiento (WPO / Core Web Vitals)", "description": "", "basePrice": 120000, "unit": "global", "recurring": false },
+    { "id": "I-04", "name": "Compilación y despliegue a producción (Puesta en marcha)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "I-05", "name": "Contratación/Setup de Hosting (VPS, Cloud o Dedicado)", "description": "", "basePrice": 80000, "unit": "global", "recurring": false },
+    { "id": "I-06", "name": "Registro y configuración de Dominio DNS (.cl, .com)", "description": "", "basePrice": 30000, "unit": "global", "recurring": false },
+    { "id": "I-07", "name": "Instalación y configuración de Certificado de Seguridad (SSL)", "description": "", "basePrice": 40000, "unit": "global", "recurring": false },
+    { "id": "I-08", "name": "Configuración de correos corporativos (Workspace, Zoho, etc.)", "description": "", "basePrice": 60000, "unit": "global", "recurring": false },
+    { "id": "I-09", "name": "Configuración de CDN y Firewall de seguridad (ej. Cloudflare)", "description": "", "basePrice": 80000, "unit": "global", "recurring": false },
+    { "id": "I-10", "name": "Setup de almacenamiento en la nube para assets pesados (AWS S3, Google Cloud)", "description": "", "basePrice": 100000, "unit": "global", "recurring": false }
+  ]
+}

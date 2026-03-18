@@ -86,28 +86,47 @@ export default function App() {
       }
     });
 
+    // Extract actual dynamic modifier values from the catalog
+    // We try to find them by their default IDs to respect user changes to the basePrice
+    const urgencyItem = catalog.find(c => c.id === 'admin')?.items.find(i => i.id === 'A-04');
+    const urgencyMultiplier = urgencyItem ? urgencyItem.basePrice : 1.5;
+
+    const financingItem = catalog.find(c => c.id === 'admin')?.items.find(i => i.id === 'A-06');
+    const financingPct = financingItem ? financingItem.basePrice : 0.05;
+
+    const successFeeItem = catalog.find(c => c.id === 'admin')?.items.find(i => i.id === 'A-05');
+    const successFeePct = successFeeItem ? successFeeItem.basePrice : 0.10;
+
+    const thirdPartyItem = catalog.find(c => c.id === 'admin')?.items.find(i => i.id === 'A-07');
+    const thirdPartyPct = thirdPartyItem ? thirdPartyItem.basePrice : 0.15;
+
     let oneTimeTotal = oneTimeBase;
     const recurringTotal = recurringBase;
 
+    let urgencyModifier = 0;
+    let financingModifier = 0;
+    let successFeeModifier = 0;
+    let thirdPartyModifier = 0;
+
     // Apply modifiers
     if (modifiers.urgency) {
-      // A-04: Recargo por Urgencia (1.5x on one-time)
-      oneTimeTotal *= 1.5;
+      urgencyModifier = oneTimeBase * (urgencyMultiplier - 1);
+      oneTimeTotal += urgencyModifier;
     }
 
     if (modifiers.financing) {
-      // A-06: Recargo financiero (5%)
-      oneTimeTotal *= 1.05;
+      financingModifier = oneTimeTotal * financingPct;
+      oneTimeTotal += financingModifier;
     }
 
     if (modifiers.successFee) {
-      // A-05: Tasa de riesgo/éxito (Success Fee 10%)
-      oneTimeTotal *= 1.10;
+      successFeeModifier = oneTimeBase * successFeePct;
+      oneTimeTotal += successFeeModifier;
     }
 
     if (modifiers.thirdPartyMarkup) {
-      // A-07: Comisión por compras (15% - arbitrarily applying to a portion or whole for demo)
-      oneTimeTotal *= 1.15;
+      thirdPartyModifier = oneTimeBase * thirdPartyPct;
+      oneTimeTotal += thirdPartyModifier;
     }
 
     return {
@@ -115,38 +134,39 @@ export default function App() {
       recurringBase,
       oneTimeTotal,
       recurringTotal,
-      urgencyModifier: modifiers.urgency ? oneTimeBase * 0.5 : 0,
-      financingModifier: modifiers.financing ? (oneTimeBase * (modifiers.urgency ? 1.5 : 1)) * 0.05 : 0,
-      successFeeModifier: modifiers.successFee ? oneTimeBase * 0.10 : 0,
-      thirdPartyModifier: modifiers.thirdPartyMarkup ? oneTimeBase * 0.15 : 0,
+      urgencyModifier,
+      financingModifier,
+      successFeeModifier,
+      thirdPartyModifier,
     };
-  }, [selectedServices, modifiers]);
+  }, [selectedServices, modifiers, catalog]);
 
   const saveCatalog = (newCatalog: Category[]) => {
     setCatalog(newCatalog);
     localStorage.setItem('cpq-catalog', JSON.stringify(newCatalog));
   };
 
-  const handleUpdateItem = (categoryId: string, updatedItem: ServiceItem) => {
+  const handleUpdateItem = (categoryId: string, oldItemId: string, updatedItem: ServiceItem) => {
     const newCatalog = catalog.map(cat => {
       if (cat.id !== categoryId) return cat;
       return {
         ...cat,
-        items: cat.items.map(item => item.id === updatedItem.id ? updatedItem : item)
+        items: cat.items.map(item => item.id === oldItemId ? updatedItem : item)
       };
     });
     saveCatalog(newCatalog);
 
     // Update selectedServices if modified item is selected to reflect changes instantly
-    if (selectedServices[updatedItem.id]) {
-        setSelectedServices(prev => ({
-            ...prev,
-            [updatedItem.id]: {
-                ...prev[updatedItem.id],
-                item: updatedItem
-            }
-        }));
-    }
+    // and handle the case where the id was changed
+    setSelectedServices(prev => {
+        const newSelected = { ...prev };
+        if (newSelected[oldItemId]) {
+            const quantity = newSelected[oldItemId].quantity;
+            delete newSelected[oldItemId];
+            newSelected[updatedItem.id] = { item: updatedItem, quantity };
+        }
+        return newSelected;
+    });
   };
 
   const handleAddItem = (categoryId: string) => {
@@ -534,7 +554,7 @@ export default function App() {
                                             <input
                                                 type="text"
                                                 value={item.id}
-                                                onChange={(e) => handleUpdateItem(category.id, {...item, id: e.target.value})}
+                                                onChange={(e) => handleUpdateItem(category.id, item.id, {...item, id: e.target.value})}
                                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm py-1.5 px-2 border"
                                             />
                                         </div>
@@ -544,12 +564,12 @@ export default function App() {
                                             <input
                                                 type="text"
                                                 value={item.name}
-                                                onChange={(e) => handleUpdateItem(category.id, {...item, name: e.target.value})}
+                                                onChange={(e) => handleUpdateItem(category.id, item.id, {...item, name: e.target.value})}
                                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-medium text-gray-900 py-1.5 px-2 border mb-2"
                                             />
                                             <textarea
                                                 value={item.description}
-                                                onChange={(e) => handleUpdateItem(category.id, {...item, description: e.target.value})}
+                                                onChange={(e) => handleUpdateItem(category.id, item.id, {...item, description: e.target.value})}
                                                 placeholder="Descripción (opcional)"
                                                 rows={2}
                                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-xs text-gray-500 py-1.5 px-2 border resize-none"
@@ -561,7 +581,7 @@ export default function App() {
                                             <input
                                                 type="number"
                                                 value={item.basePrice}
-                                                onChange={(e) => handleUpdateItem(category.id, {...item, basePrice: parseFloat(e.target.value) || 0})}
+                                                onChange={(e) => handleUpdateItem(category.id, item.id, {...item, basePrice: parseFloat(e.target.value) || 0})}
                                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono py-1.5 px-2 border"
                                             />
                                         </div>
@@ -570,7 +590,7 @@ export default function App() {
                                             <label className="block text-xs font-semibold text-gray-500 uppercase">Unidad</label>
                                             <select
                                                 value={item.unit}
-                                                onChange={(e) => handleUpdateItem(category.id, {...item, unit: e.target.value})}
+                                                onChange={(e) => handleUpdateItem(category.id, item.id, {...item, unit: e.target.value})}
                                                 className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm py-1.5 px-2 border bg-white"
                                             >
                                                 <option value="global">Global (Único)</option>
@@ -590,7 +610,7 @@ export default function App() {
                                                 <input
                                                     type="checkbox"
                                                     checked={item.recurring}
-                                                    onChange={(e) => handleUpdateItem(category.id, {...item, recurring: e.target.checked})}
+                                                    onChange={(e) => handleUpdateItem(category.id, item.id, {...item, recurring: e.target.checked})}
                                                     className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer"
                                                 />
                                              </div>
