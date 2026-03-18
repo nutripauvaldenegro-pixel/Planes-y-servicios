@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { catalog } from './data/catalog';
-import type { ServiceItem } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2 } from 'lucide-react';
+import { catalog as defaultCatalog } from './data/catalog';
+import type { ServiceItem, Category } from './data/catalog';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -16,7 +16,16 @@ type Modifiers = {
 };
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'configure' | 'price' | 'quote'>('configure');
+  const [activeTab, setActiveTab] = useState<'configure' | 'price' | 'quote' | 'admin'>('configure');
+
+  const [catalog, setCatalog] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('cpq-catalog');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing catalog', e); }
+    }
+    return defaultCatalog;
+  });
+
   const [selectedServices, setSelectedServices] = useState<Record<string, SelectedService>>({});
   const [modifiers, setModifiers] = useState<Modifiers>({
     urgency: false,
@@ -113,6 +122,70 @@ export default function App() {
     };
   }, [selectedServices, modifiers]);
 
+  const saveCatalog = (newCatalog: Category[]) => {
+    setCatalog(newCatalog);
+    localStorage.setItem('cpq-catalog', JSON.stringify(newCatalog));
+  };
+
+  const handleUpdateItem = (categoryId: string, updatedItem: ServiceItem) => {
+    const newCatalog = catalog.map(cat => {
+      if (cat.id !== categoryId) return cat;
+      return {
+        ...cat,
+        items: cat.items.map(item => item.id === updatedItem.id ? updatedItem : item)
+      };
+    });
+    saveCatalog(newCatalog);
+
+    // Update selectedServices if modified item is selected to reflect changes instantly
+    if (selectedServices[updatedItem.id]) {
+        setSelectedServices(prev => ({
+            ...prev,
+            [updatedItem.id]: {
+                ...prev[updatedItem.id],
+                item: updatedItem
+            }
+        }));
+    }
+  };
+
+  const handleAddItem = (categoryId: string) => {
+    const newCatalog = catalog.map(cat => {
+      if (cat.id !== categoryId) return cat;
+      const newItemId = `NEW-${Math.floor(Math.random() * 1000)}`;
+      return {
+        ...cat,
+        items: [...cat.items, { id: newItemId, name: 'Nuevo Item', description: '', basePrice: 0, unit: 'global', recurring: false }]
+      };
+    });
+    saveCatalog(newCatalog);
+  };
+
+  const handleDeleteItem = (categoryId: string, itemId: string) => {
+    const newCatalog = catalog.map(cat => {
+        if (cat.id !== categoryId) return cat;
+        return {
+            ...cat,
+            items: cat.items.filter(item => item.id !== itemId)
+        };
+    });
+    saveCatalog(newCatalog);
+
+    if (selectedServices[itemId]) {
+        const newSelected = {...selectedServices};
+        delete newSelected[itemId];
+        setSelectedServices(newSelected);
+    }
+  };
+
+  const handleResetCatalog = () => {
+      if (confirm('¿Estás seguro de restaurar el catálogo a sus valores por defecto? Perderás todos los cambios.')) {
+          setCatalog(defaultCatalog);
+          localStorage.removeItem('cpq-catalog');
+          setSelectedServices({});
+      }
+  };
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -151,6 +224,13 @@ export default function App() {
               >
                 <FileText className="w-4 h-4 mr-2" />
                 3. Quote (Q)
+              </button>
+              <button
+                onClick={() => setActiveTab('admin')}
+                className={`flex items-center px-3 py-2 text-sm font-medium border-b-2 ${activeTab === 'admin' ? 'border-gray-800 text-gray-900' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Admin
               </button>
             </nav>
           </div>
@@ -410,6 +490,128 @@ export default function App() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* --- ADMIN TAB --- */}
+        {activeTab === 'admin' && (
+            <div className="space-y-8 animate-in fade-in duration-300">
+                <div className="mb-6 flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-gray-900">Admin: Control de Inventario</h1>
+                        <p className="text-gray-500 mt-1">Modifica los valores, descripciones o agrega nuevos puntos al catálogo.</p>
+                    </div>
+                    <button
+                        onClick={handleResetCatalog}
+                        className="flex items-center text-sm text-red-600 hover:bg-red-50 border border-red-200 px-3 py-2 rounded-lg transition-colors bg-white shadow-sm"
+                    >
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Restaurar a Valores por Defecto
+                    </button>
+                </div>
+
+                <div className="space-y-6">
+                    {catalog.map(category => (
+                        <div key={category.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-800">{category.name}</h2>
+                                    <p className="text-sm text-gray-500">{category.description}</p>
+                                </div>
+                                <button
+                                    onClick={() => handleAddItem(category.id)}
+                                    className="flex items-center text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                                >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Añadir Item
+                                </button>
+                            </div>
+
+                            <div className="divide-y divide-gray-100 p-2">
+                                {category.items.map(item => (
+                                    <div key={item.id} className="p-4 grid grid-cols-12 gap-4 items-start hover:bg-gray-50 transition-colors rounded-lg group">
+                                        <div className="col-span-2 space-y-2">
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase">ID</label>
+                                            <input
+                                                type="text"
+                                                value={item.id}
+                                                onChange={(e) => handleUpdateItem(category.id, {...item, id: e.target.value})}
+                                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm py-1.5 px-2 border"
+                                            />
+                                        </div>
+
+                                        <div className="col-span-4 space-y-2">
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase">Nombre & Descripción</label>
+                                            <input
+                                                type="text"
+                                                value={item.name}
+                                                onChange={(e) => handleUpdateItem(category.id, {...item, name: e.target.value})}
+                                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-medium text-gray-900 py-1.5 px-2 border mb-2"
+                                            />
+                                            <textarea
+                                                value={item.description}
+                                                onChange={(e) => handleUpdateItem(category.id, {...item, description: e.target.value})}
+                                                placeholder="Descripción (opcional)"
+                                                rows={2}
+                                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-xs text-gray-500 py-1.5 px-2 border resize-none"
+                                            />
+                                        </div>
+
+                                        <div className="col-span-2 space-y-2">
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase">Precio Base</label>
+                                            <input
+                                                type="number"
+                                                value={item.basePrice}
+                                                onChange={(e) => handleUpdateItem(category.id, {...item, basePrice: parseFloat(e.target.value) || 0})}
+                                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm font-mono py-1.5 px-2 border"
+                                            />
+                                        </div>
+
+                                        <div className="col-span-2 space-y-2">
+                                            <label className="block text-xs font-semibold text-gray-500 uppercase">Unidad</label>
+                                            <select
+                                                value={item.unit}
+                                                onChange={(e) => handleUpdateItem(category.id, {...item, unit: e.target.value})}
+                                                className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm py-1.5 px-2 border bg-white"
+                                            >
+                                                <option value="global">Global (Único)</option>
+                                                <option value="hora">Por Hora</option>
+                                                <option value="pantalla">Por Pantalla</option>
+                                                <option value="módulo/CRUD">Por Módulo</option>
+                                                <option value="integración">Por Integración</option>
+                                                <option value="mensual">Mensual (Retainer)</option>
+                                                <option value="multiplicador">Multiplicador (1.5x)</option>
+                                                <option value="porcentaje">Porcentaje (0.1)</option>
+                                            </select>
+                                        </div>
+
+                                        <div className="col-span-1 space-y-2 text-center">
+                                             <label className="block text-xs font-semibold text-gray-500 uppercase">Mensual</label>
+                                             <div className="flex justify-center pt-2">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={item.recurring}
+                                                    onChange={(e) => handleUpdateItem(category.id, {...item, recurring: e.target.checked})}
+                                                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer"
+                                                />
+                                             </div>
+                                        </div>
+
+                                        <div className="col-span-1 space-y-2 flex justify-end items-end h-full pb-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                             <button
+                                                onClick={() => handleDeleteItem(category.id, item.id)}
+                                                className="text-red-400 hover:text-red-600 p-1.5 hover:bg-red-50 rounded-md transition-colors"
+                                                title="Eliminar Item"
+                                             >
+                                                <Trash2 className="w-5 h-5" />
+                                             </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         )}
 
         {/* --- QUOTE TAB --- */}
