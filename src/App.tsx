@@ -1396,14 +1396,36 @@ export default function App() {
 
                                     <div className="space-y-4">
                                         <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1">URL del Logo</label>
-                                            <input
-                                                type="url"
-                                                placeholder="https://ejemplo.com/logo.png"
-                                                value={pdfSettings.logoUrl || ''}
-                                                onChange={(e) => setPdfSettings({...pdfSettings, logoUrl: e.target.value})}
-                                                className="w-full text-xs border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 border px-2 py-1.5"
-                                            />
+                                            <label className="block text-xs font-semibold text-gray-600 mb-1">Adjuntar Logo</label>
+                                            <div className="flex items-center space-x-2">
+                                                <label className="flex-1 cursor-pointer bg-white border border-gray-300 rounded shadow-sm px-2 py-1.5 text-xs text-center text-gray-700 hover:bg-gray-50 focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden text-ellipsis whitespace-nowrap">
+                                                    {pdfSettings.logoUrl ? 'Cambiar Imagen...' : 'Subir Imagen...'}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        className="hidden"
+                                                        onChange={(e) => {
+                                                            const file = e.target.files?.[0];
+                                                            if (file) {
+                                                                const reader = new FileReader();
+                                                                reader.onloadend = () => {
+                                                                    setPdfSettings({...pdfSettings, logoUrl: reader.result as string});
+                                                                };
+                                                                reader.readAsDataURL(file);
+                                                            }
+                                                        }}
+                                                    />
+                                                </label>
+                                                {pdfSettings.logoUrl && (
+                                                    <button
+                                                        onClick={() => setPdfSettings({...pdfSettings, logoUrl: ''})}
+                                                        className="p-1.5 text-red-500 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors"
+                                                        title="Eliminar logo"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div className="grid grid-cols-2 gap-3">
