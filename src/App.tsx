@@ -1,11 +1,12 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
-import type { ServiceItem, Category } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download } from 'lucide-react';
+import type { ServiceItem, Category, Pack } from './data/catalog';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
   quantity: number;
+  customVariables: Record<string, number>; // Local overrides per client/quote
 };
 
 type Modifiers = {
@@ -61,6 +62,14 @@ export default function App() {
     return defaultCatalog;
   });
 
+  const [packs, setPacks] = useState<Pack[]>(() => {
+    const saved = localStorage.getItem('cpq-packs');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing packs', e); }
+    }
+    return [];
+  });
+
   const [selectedServices, setSelectedServices] = useState<Record<string, SelectedService>>({});
   const [modifiers, setModifiers] = useState<Modifiers>({
     urgency: false,
@@ -110,6 +119,40 @@ export default function App() {
     isEditing: false
   });
 
+  const evaluateItemPrice = (item: ServiceItem, customVars: Record<string, number>): number => {
+    if (!item.priceFormula || item.priceFormula.trim() === '' || item.priceFormula === 'basePrice') {
+      return item.basePrice;
+    }
+
+    try {
+      // Safely evaluate simple math formulas replacing variable IDs with values
+      let formula = item.priceFormula.toLowerCase();
+
+      // Always allow 'baseprice' variable
+      formula = formula.replace(/baseprice/g, item.basePrice.toString());
+
+      if (item.variables) {
+        for (const v of item.variables) {
+          const val = customVars[v.id] !== undefined ? customVars[v.id] : v.defaultValue;
+          // Use regex to match exact variable name boundaries to avoid partial matches
+          const regex = new RegExp(`\\b${v.id.toLowerCase()}\\b`, 'g');
+          formula = formula.replace(regex, val.toString());
+        }
+      }
+
+      // Extremely basic and safe math evaluator (only allowing digits, basic operators, and spaces)
+      if (/^[0-9+\-*/().\s]+$/.test(formula)) {
+        return Math.max(0, new Function('return ' + formula)());
+      }
+
+      console.warn(`Invalid formula syntax for item ${item.id}: ${item.priceFormula} (Evaluated: ${formula})`);
+      return item.basePrice;
+    } catch (e) {
+      console.error(`Failed to evaluate formula for item ${item.id}`, e);
+      return item.basePrice;
+    }
+  };
+
   // Toggle selection
   const handleSelectService = (item: ServiceItem) => {
     setSelectedServices(prev => {
@@ -119,9 +162,15 @@ export default function App() {
         delete newObj[item.id];
         return newObj;
       } else {
+        // Initialize default custom variables if the item uses them
+        const customVars: Record<string, number> = {};
+        if (item.variables) {
+            item.variables.forEach(v => customVars[v.id] = v.defaultValue);
+        }
+
         return {
           ...prev,
-          [item.id]: { item, quantity: 1 }
+          [item.id]: { item, quantity: 1, customVariables: customVars }
         };
       }
     });
@@ -135,6 +184,45 @@ export default function App() {
     }));
   };
 
+  const handleUpdateCustomVariable = (itemId: string, varId: string, value: number) => {
+    setSelectedServices(prev => ({
+      ...prev,
+      [itemId]: {
+          ...prev[itemId],
+          customVariables: { ...prev[itemId].customVariables, [varId]: value }
+      }
+    }));
+  };
+
+  const loadPack = (pack: Pack) => {
+      if (confirm(`¿Estás seguro de cargar el pack "${pack.name}"? Reemplazará tu selección actual.`)) {
+          const newSelected: Record<string, SelectedService> = {};
+
+          pack.items.forEach(pItem => {
+              // Find item in catalog
+              let foundItem: ServiceItem | undefined;
+              catalog.forEach(cat => {
+                  const match = cat.items.find(i => i.id === pItem.itemId);
+                  if (match) foundItem = match;
+              });
+
+              if (foundItem) {
+                  // Merge default variables with pack overrides
+                  const customVars: Record<string, number> = {};
+                  if (foundItem.variables) {
+                      foundItem.variables.forEach(v => {
+                          customVars[v.id] = pItem.overriddenVariables[v.id] !== undefined ? pItem.overriddenVariables[v.id] : v.defaultValue;
+                      });
+                  }
+
+                  newSelected[foundItem.id] = { item: foundItem, quantity: 1, customVariables: customVars };
+              }
+          });
+
+          setSelectedServices(newSelected);
+      }
+  };
+
   const calculatePrices = useMemo(() => {
     let oneTimeBase = 0;
     let recurringBase = 0;
@@ -143,11 +231,13 @@ export default function App() {
     // For this prototype, if it's selected directly, we'll calculate it
     const services = Object.values(selectedServices);
 
-    services.forEach(({ item, quantity }) => {
+    services.forEach(({ item, quantity, customVariables }) => {
       // Skip the A-04 to A-07 items as base calculation, we'll apply them via toggles
       if (['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)) return;
 
-      const cost = item.basePrice * quantity;
+      const itemBaseCost = evaluateItemPrice(item, customVariables);
+      const cost = itemBaseCost * quantity;
+
       if (item.recurring) {
         recurringBase += cost;
       } else {
@@ -231,8 +321,9 @@ export default function App() {
         const newSelected = { ...prev };
         if (newSelected[oldItemId]) {
             const quantity = newSelected[oldItemId].quantity;
+            const customVariables = newSelected[oldItemId].customVariables || {};
             delete newSelected[oldItemId];
-            newSelected[updatedItem.id] = { item: updatedItem, quantity };
+            newSelected[updatedItem.id] = { item: updatedItem, quantity, customVariables };
         }
         return newSelected;
     });
@@ -270,7 +361,40 @@ export default function App() {
   const handleSaveCategory = () => {
       saveCatalogState(catalog);
       // Optional: Show some success feedback
-      alert('Cambios guardados exitosamente en la memoria del navegador.');
+      alert('Cambios del catálogo guardados exitosamente en la memoria del navegador.');
+  };
+
+  const handleSavePacks = () => {
+      localStorage.setItem('cpq-packs', JSON.stringify(packs));
+      alert('Packs guardados exitosamente.');
+  };
+
+  const handleCreatePack = () => {
+      const newPack: Pack = {
+          id: `PACK-${Math.floor(Math.random() * 10000)}`,
+          name: 'Nuevo Pack',
+          description: '',
+          items: []
+      };
+      setPacks([newPack, ...packs]);
+  };
+
+  const handleUpdatePack = (updatedPack: Pack) => {
+      setPacks(packs.map(p => p.id === updatedPack.id ? updatedPack : p));
+  };
+
+  const handleDeletePack = (packId: string) => {
+      if (confirm('¿Estás seguro de eliminar este Pack?')) {
+          setPacks(packs.filter(p => p.id !== packId));
+      }
+  };
+
+  const getCatalogItem = (itemId: string): ServiceItem | undefined => {
+      for (const cat of catalog) {
+          const found = cat.items.find(i => i.id === itemId);
+          if (found) return found;
+      }
+      return undefined;
   };
 
   const handleSavePdfSettings = () => {
@@ -411,9 +535,33 @@ export default function App() {
         {/* --- CONFIGURE TAB --- */}
         {activeTab === 'configure' && (
           <div className="space-y-8 animate-in fade-in duration-300">
-            <div className="mb-6">
-              <h1 className="text-2xl font-bold text-gray-900">Configure: Inventario Molecular</h1>
-              <p className="text-gray-500 mt-1">Selecciona los parámetros atómicos para armar el "Pack" exacto.</p>
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Configure: Inventario Molecular</h1>
+                <p className="text-gray-500 mt-1">Selecciona los parámetros atómicos para armar el "Pack" exacto.</p>
+              </div>
+
+              {packs.length > 0 && (
+                  <div className="flex items-center bg-white border border-gray-300 rounded-lg shadow-sm p-1">
+                      <div className="pl-3 pr-2 flex items-center text-sm font-medium text-gray-600 border-r border-gray-200">
+                          <Package className="w-4 h-4 mr-2 text-indigo-500" />
+                          Cargar Pack
+                      </div>
+                      <select
+                          className="border-0 focus:ring-0 text-sm font-medium text-gray-900 bg-transparent pl-3 pr-8 py-1.5 w-48"
+                          value=""
+                          onChange={e => {
+                              const pack = packs.find(p => p.id === e.target.value);
+                              if (pack) loadPack(pack);
+                          }}
+                      >
+                          <option value="">Selecciona un Pack...</option>
+                          {packs.map(p => (
+                              <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                      </select>
+                  </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -427,40 +575,74 @@ export default function App() {
                     <div className="divide-y divide-gray-100">
                       {category.items.filter(item => !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)).map((item) => {
                         const isSelected = !!selectedServices[item.id];
+                        const selService = selectedServices[item.id];
+
                         return (
                           <div
                             key={item.id}
-                            className={`p-4 flex items-center justify-between transition-colors ${isSelected ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}
+                            className={`p-4 transition-colors ${isSelected ? 'bg-blue-50/30' : 'hover:bg-gray-50'}`}
                           >
-                            <div className="flex items-start flex-1 cursor-pointer" onClick={() => handleSelectService(item)}>
-                              <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border flex items-center justify-center mr-3 ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-300 bg-white'}`}>
-                                {isSelected && <Check className="w-3.5 h-3.5" />}
-                              </div>
-                              <div>
-                                <div className="flex items-center">
-                                  <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded mr-2">{item.id}</span>
-                                  <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>{item.name}</span>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-start flex-1 cursor-pointer" onClick={() => handleSelectService(item)}>
+                                  <div className={`mt-0.5 w-5 h-5 flex-shrink-0 rounded border flex items-center justify-center mr-3 ${isSelected ? 'bg-blue-500 border-blue-500 text-white' : 'border-gray-300 bg-white'}`}>
+                                    {isSelected && <Check className="w-3.5 h-3.5" />}
+                                  </div>
+                                  <div>
+                                    <div className="flex items-center">
+                                      <span className="font-mono text-xs font-semibold text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded mr-2">{item.id}</span>
+                                      <span className={`font-medium ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>{item.name}</span>
+                                    </div>
+                                    {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
+                                    <div className="text-xs text-gray-400 mt-1 flex items-center">
+                                      {formatCurrency(item.basePrice)} / {item.unit}
+                                      {item.recurring && <span className="ml-2 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-medium">Recurrente</span>}
+                                    </div>
+                                  </div>
                                 </div>
-                                {item.description && <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>}
-                                <div className="text-xs text-gray-400 mt-1 flex items-center">
-                                  {formatCurrency(item.basePrice)} / {item.unit}
-                                  {item.recurring && <span className="ml-2 bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full text-[10px] font-medium">Recurrente</span>}
-                                </div>
-                              </div>
+
+                                {isSelected && (['hora', 'pantalla', 'módulo/CRUD', 'integración'].includes(item.unit)) && (
+                                  <div className="flex items-center space-x-2 ml-4 bg-white px-2 py-1 rounded border border-gray-200">
+                                    <label className="text-xs text-gray-500 font-medium">Cant.</label>
+                                    <input
+                                      type="number"
+                                      min="1"
+                                      value={selService.quantity}
+                                      onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
+                                      className="w-16 text-sm border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
+                                    />
+                                  </div>
+                                )}
                             </div>
 
-                            {isSelected && (['hora', 'pantalla', 'módulo/CRUD', 'integración'].includes(item.unit)) && (
-                              <div className="flex items-center space-x-2 ml-4 bg-white px-2 py-1 rounded border border-gray-200">
-                                <label className="text-xs text-gray-500 font-medium">Cant.</label>
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={selectedServices[item.id].quantity}
-                                  onChange={(e) => handleUpdateQuantity(item.id, parseInt(e.target.value) || 1)}
-                                  className="w-16 text-sm border-gray-300 rounded px-2 py-1 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                              </div>
+                            {/* Custom Variables Section for Selected Items */}
+                            {isSelected && item.variables && item.variables.length > 0 && (
+                                <div className="mt-3 ml-8 p-3 bg-white border border-blue-100 rounded-lg shadow-sm">
+                                    <p className="text-[10px] font-bold text-blue-500 uppercase tracking-wider mb-2 flex items-center">
+                                        <Variable className="w-3 h-3 mr-1" />
+                                        Personalización de Cálculo para este Cliente
+                                    </p>
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                        {item.variables.map(v => (
+                                            <div key={v.id} className="flex flex-col">
+                                                <label className="text-xs font-medium text-gray-600 mb-1">{v.name}</label>
+                                                <input
+                                                    type="number"
+                                                    value={selService.customVariables[v.id] ?? v.defaultValue}
+                                                    onChange={(e) => handleUpdateCustomVariable(item.id, v.id, parseFloat(e.target.value) || 0)}
+                                                    className="w-full text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 py-1 px-2 border font-mono"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <div className="mt-3 pt-2 border-t border-gray-100 flex justify-between items-center text-xs">
+                                        <span className="text-gray-500 font-mono">Fórmula: {item.priceFormula}</span>
+                                        <span className="font-bold text-gray-900 bg-gray-100 px-2 py-1 rounded">
+                                            Costo Base Calculado: {formatCurrency(evaluateItemPrice(item, selService.customVariables))}
+                                        </span>
+                                    </div>
+                                </div>
                             )}
+
                           </div>
                         );
                       })}
@@ -926,6 +1108,152 @@ export default function App() {
                         </div>
                     </div>
 
+                    {/* --- PACKS MANAGEMENT --- */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-800 flex items-center"><Package className="w-5 h-5 mr-2 text-indigo-500" /> Gestión de Packs Predefinidos</h2>
+                                <p className="text-sm text-gray-500">Agrupa servicios y define valores por defecto específicos para crear planes listos para vender.</p>
+                            </div>
+                            <div className="flex space-x-2">
+                                <button
+                                    onClick={handleCreatePack}
+                                    className="flex items-center text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors"
+                                >
+                                    <Plus className="w-4 h-4 mr-1" />
+                                    Nuevo Pack
+                                </button>
+                                <button
+                                    onClick={handleSavePacks}
+                                    className="flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+                                >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    Guardar Packs
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                            {packs.length === 0 ? (
+                                <p className="text-center text-gray-500 text-sm py-4">Aún no has creado ningún Pack.</p>
+                            ) : (
+                                packs.map(pack => (
+                                    <div key={pack.id} className="border border-indigo-100 rounded-lg p-4 bg-indigo-50/20 relative">
+                                        <button
+                                            onClick={() => handleDeletePack(pack.id)}
+                                            className="absolute top-4 right-4 text-red-400 hover:text-red-600"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
+
+                                        <div className="grid grid-cols-2 gap-4 mb-4 pr-8">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1">Nombre del Pack</label>
+                                                <input
+                                                    type="text"
+                                                    value={pack.name}
+                                                    onChange={e => handleUpdatePack({...pack, name: e.target.value})}
+                                                    className="w-full border-gray-300 rounded shadow-sm py-1.5 px-2 text-sm font-bold text-indigo-900 border"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-600 mb-1">Descripción</label>
+                                                <input
+                                                    type="text"
+                                                    value={pack.description}
+                                                    onChange={e => handleUpdatePack({...pack, description: e.target.value})}
+                                                    className="w-full border-gray-300 rounded shadow-sm py-1.5 px-2 text-sm text-gray-600 border"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white rounded border border-gray-200 p-3">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <label className="block text-xs font-semibold text-gray-700">Servicios incluidos en el Pack</label>
+                                                <select
+                                                    className="text-xs border-gray-300 rounded py-1 pl-2 pr-6 border bg-gray-50"
+                                                    value=""
+                                                    onChange={e => {
+                                                        if (e.target.value) {
+                                                            const newItemId = e.target.value;
+                                                            if (!pack.items.find(i => i.itemId === newItemId)) {
+                                                                const catItem = getCatalogItem(newItemId);
+                                                                const initialVars: Record<string, number> = {};
+                                                                if (catItem?.variables) {
+                                                                    catItem.variables.forEach(v => initialVars[v.id] = v.defaultValue);
+                                                                }
+                                                                handleUpdatePack({...pack, items: [...pack.items, { itemId: newItemId, overriddenVariables: initialVars }]});
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    <option value="">+ Añadir servicio al pack...</option>
+                                                    {catalog.map(cat => (
+                                                        <optgroup key={cat.id} label={cat.name}>
+                                                            {cat.items.map(item => (
+                                                                <option key={item.id} value={item.id}>{item.id} - {item.name}</option>
+                                                            ))}
+                                                        </optgroup>
+                                                    ))}
+                                                </select>
+                                            </div>
+
+                                            {pack.items.length === 0 ? (
+                                                <p className="text-xs text-gray-400 italic">No hay servicios en este pack.</p>
+                                            ) : (
+                                                <div className="space-y-2">
+                                                    {pack.items.map((pItem, pIdx) => {
+                                                        const catItem = getCatalogItem(pItem.itemId);
+                                                        if (!catItem) return null;
+
+                                                        return (
+                                                            <div key={pIdx} className="flex flex-col sm:flex-row sm:items-center gap-3 p-2 bg-gray-50 rounded border border-gray-100">
+                                                                <div className="flex-1 flex items-center">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            const newItems = pack.items.filter((_, i) => i !== pIdx);
+                                                                            handleUpdatePack({...pack, items: newItems});
+                                                                        }}
+                                                                        className="text-gray-400 hover:text-red-500 mr-2"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3" />
+                                                                    </button>
+                                                                    <span className="text-xs font-mono font-bold text-gray-500 mr-2">{catItem.id}</span>
+                                                                    <span className="text-sm font-medium text-gray-800">{catItem.name}</span>
+                                                                </div>
+
+                                                                {catItem.variables && catItem.variables.length > 0 && (
+                                                                    <div className="flex gap-2 flex-wrap">
+                                                                        {catItem.variables.map(v => (
+                                                                            <div key={v.id} className="flex items-center bg-white border border-gray-200 rounded px-2 py-0.5">
+                                                                                <span className="text-[10px] font-bold text-indigo-600 mr-1">{v.name}:</span>
+                                                                                <input
+                                                                                    type="number"
+                                                                                    value={pItem.overriddenVariables[v.id] ?? v.defaultValue}
+                                                                                    onChange={e => {
+                                                                                        const newVars = {...pItem.overriddenVariables, [v.id]: parseFloat(e.target.value) || 0};
+                                                                                        const newItems = [...pack.items];
+                                                                                        newItems[pIdx] = { ...pItem, overriddenVariables: newVars };
+                                                                                        handleUpdatePack({...pack, items: newItems});
+                                                                                    }}
+                                                                                    className="w-12 text-xs border-none bg-transparent focus:ring-0 p-0 text-right font-mono"
+                                                                                />
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
                     {catalog.map(category => (
                         <div key={category.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
@@ -1029,6 +1357,97 @@ export default function App() {
                                              >
                                                 <Trash2 className="w-5 h-5" />
                                              </button>
+                                        </div>
+
+                                        {/* Variables & Formula Editor */}
+                                        <div className="col-span-12 mt-4 pt-4 border-t border-gray-200 bg-white p-4 rounded-lg border">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <h4 className="text-sm font-bold text-gray-700 flex items-center">
+                                                    <Variable className="w-4 h-4 mr-1 text-indigo-500" />
+                                                    Campos Dinámicos y Cálculo (Opcional)
+                                                </h4>
+                                                <button
+                                                    onClick={() => {
+                                                        const newVars = [...(item.variables || []), { id: `var${(item.variables?.length || 0) + 1}`, name: 'Nuevo Campo', defaultValue: 1 }];
+                                                        handleUpdateItem(category.id, item.id, { ...item, variables: newVars, priceFormula: item.priceFormula || 'basePrice' });
+                                                    }}
+                                                    className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center"
+                                                >
+                                                    <Plus className="w-3 h-3 mr-1" />
+                                                    Añadir Campo
+                                                </button>
+                                            </div>
+
+                                            {item.variables && item.variables.length > 0 && (
+                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
+                                                    {item.variables.map((v, vIdx) => (
+                                                        <div key={vIdx} className="bg-indigo-50/50 p-3 rounded border border-indigo-100 flex items-center gap-2">
+                                                            <div className="flex-1 space-y-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={v.id}
+                                                                    onChange={(e) => {
+                                                                        const newVars = [...item.variables!];
+                                                                        newVars[vIdx].id = e.target.value.replace(/[^a-zA-Z0-9_]/g, ''); // alphanumeric only
+                                                                        handleUpdateItem(category.id, item.id, { ...item, variables: newVars });
+                                                                    }}
+                                                                    placeholder="ID (ej: horas)"
+                                                                    className="w-full text-xs font-mono border-gray-300 rounded shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1 px-2 border"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={v.name}
+                                                                    onChange={(e) => {
+                                                                        const newVars = [...item.variables!];
+                                                                        newVars[vIdx].name = e.target.value;
+                                                                        handleUpdateItem(category.id, item.id, { ...item, variables: newVars });
+                                                                    }}
+                                                                    placeholder="Nombre Público"
+                                                                    className="w-full text-xs border-gray-300 rounded shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1 px-2 border"
+                                                                />
+                                                                <div className="flex items-center gap-2">
+                                                                    <label className="text-[10px] text-gray-500 whitespace-nowrap">Valor por Defecto:</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        value={v.defaultValue}
+                                                                        onChange={(e) => {
+                                                                            const newVars = [...item.variables!];
+                                                                            newVars[vIdx].defaultValue = parseFloat(e.target.value) || 0;
+                                                                            handleUpdateItem(category.id, item.id, { ...item, variables: newVars });
+                                                                        }}
+                                                                        className="w-full text-xs border-gray-300 rounded shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1 px-2 border"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <button
+                                                                onClick={() => {
+                                                                    const newVars = item.variables!.filter((_, i) => i !== vIdx);
+                                                                    handleUpdateItem(category.id, item.id, { ...item, variables: newVars });
+                                                                }}
+                                                                className="text-red-400 hover:text-red-600"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+
+                                            <div className="mt-3">
+                                                <label className="block text-xs font-semibold text-gray-700 mb-1">Fórmula de Precio (Matemática simple)</label>
+                                                <div className="flex items-center gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={item.priceFormula || 'basePrice'}
+                                                        onChange={(e) => handleUpdateItem(category.id, item.id, { ...item, priceFormula: e.target.value })}
+                                                        placeholder="ej: basePrice + (horas * tarifa)"
+                                                        className="flex-1 text-sm font-mono border-gray-300 rounded shadow-sm focus:ring-indigo-500 focus:border-indigo-500 py-1.5 px-3 border"
+                                                    />
+                                                    <span className="text-[10px] text-gray-500 max-w-[200px] leading-tight">
+                                                        Usa <code className="bg-gray-100 px-1 rounded">basePrice</code> o los IDs que crees arriba. Usa +, -, *, /, (, ).
+                                                    </span>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -1228,12 +1647,12 @@ export default function App() {
                     <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
                       {Object.values(selectedServices)
                         .filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id))
-                        .map(({item, quantity}, idx) => (
+                        .map(({item, quantity, customVariables}, idx) => (
                         <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
                           {pdfSettings.showItemCodes && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
                           <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>
                           <td className="py-3 px-2 text-center text-gray-600">{quantity}</td>
-                          <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
+                          <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(evaluateItemPrice(item, customVariables) * quantity)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1260,11 +1679,11 @@ export default function App() {
                       <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
                         {Object.values(selectedServices)
                           .filter(({item}) => item.recurring)
-                          .map(({item, quantity}, idx) => (
+                          .map(({item, quantity, customVariables}, idx) => (
                           <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
                             {pdfSettings.showItemCodes && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
                             <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>
-                            <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
+                            <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(evaluateItemPrice(item, customVariables) * quantity)}</td>
                           </tr>
                         ))}
                       </tbody>

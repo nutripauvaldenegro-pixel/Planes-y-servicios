@@ -6,6 +6,12 @@ import catMkt from './categories/mkt.json';
 import catSupport from './categories/support.json';
 import catAdmin from './categories/admin.json';
 
+export type ServiceVariable = {
+  id: string;
+  name: string;
+  defaultValue: number;
+};
+
 export type ServiceItem = {
   id: string;
   name: string;
@@ -13,6 +19,20 @@ export type ServiceItem = {
   basePrice: number;
   unit: string;
   recurring: boolean;
+  variables?: ServiceVariable[];
+  priceFormula?: string; // e.g., "basePrice" or "horas * tarifa * magnitud"
+};
+
+export type PackItem = {
+  itemId: string;
+  overriddenVariables: Record<string, number>; // variableId -> value
+};
+
+export type Pack = {
+  id: string;
+  name: string;
+  description: string;
+  items: PackItem[];
 };
 
 export type Category = {
