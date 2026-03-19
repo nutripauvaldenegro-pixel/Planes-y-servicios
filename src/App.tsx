@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -40,6 +40,34 @@ export default function App() {
     email: '',
     date: new Date().toISOString().split('T')[0]
   });
+
+  const [pdfSettings, setPdfSettings] = useState(() => {
+    const saved = localStorage.getItem('cpq-pdf-settings');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error(e); }
+    }
+    return {
+      companyName: 'iStudio',
+      companyTagline: 'Propuesta de Servicios',
+      defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.'
+    };
+  });
+
+  const [quoteCustom, setQuoteCustom] = useState({
+    title: 'Alcance del Proyecto (Modelo Híbrido)',
+    introduction: '',
+    footer: '',
+    isEditing: false
+  });
+
+  // Initialize quote footer with default setting
+  useMemo(() => {
+    if (!quoteCustom.footer && !quoteCustom.isEditing) {
+      setTimeout(() => {
+          setQuoteCustom(prev => ({ ...prev, footer: pdfSettings.defaultFooter }));
+      }, 0);
+    }
+  }, [pdfSettings.defaultFooter, quoteCustom.footer, quoteCustom.isEditing]);
 
   // Toggle selection
   const handleSelectService = (item: ServiceItem) => {
@@ -202,6 +230,11 @@ export default function App() {
       saveCatalogState(catalog);
       // Optional: Show some success feedback
       alert('Cambios guardados exitosamente en la memoria del navegador.');
+  };
+
+  const handleSavePdfSettings = () => {
+      localStorage.setItem('cpq-pdf-settings', JSON.stringify(pdfSettings));
+      alert('Configuración de PDF guardada exitosamente.');
   };
 
   const handleResetCatalog = () => {
@@ -536,6 +569,52 @@ export default function App() {
                 </div>
 
                 <div className="space-y-6">
+                    {/* --- PDF SETTINGS --- */}
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-800">Configuración Base del PDF</h2>
+                                <p className="text-sm text-gray-500">Define los valores globales que aparecerán por defecto en todas las cotizaciones.</p>
+                            </div>
+                            <button
+                                onClick={handleSavePdfSettings}
+                                className="flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+                            >
+                                <Save className="w-4 h-4 mr-1" />
+                                Guardar Config. PDF
+                            </button>
+                        </div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                             <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre de Empresa Emisora</label>
+                                <input
+                                    type="text"
+                                    value={pdfSettings.companyName}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, companyName: e.target.value})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-gray-900 font-medium"
+                                />
+                            </div>
+                             <div>
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Título/Eslogan Principal</label>
+                                <input
+                                    type="text"
+                                    value={pdfSettings.companyTagline}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, companyTagline: e.target.value})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-blue-600 font-medium"
+                                />
+                            </div>
+                             <div className="md:col-span-2">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Textos de Cierre por Defecto (Términos, disclaimer)</label>
+                                <textarea
+                                    value={pdfSettings.defaultFooter}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, defaultFooter: e.target.value})}
+                                    rows={3}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-gray-500 text-sm"
+                                />
+                            </div>
+                        </div>
+                    </div>
+
                     {catalog.map(category => (
                         <div key={category.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                             <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
@@ -657,35 +736,84 @@ export default function App() {
                 <h1 className="text-2xl font-bold text-gray-900">Quote: Propuesta Comercial</h1>
                 <p className="text-gray-500 mt-1">Salida final lista para ser enviada o impresa por el cliente.</p>
               </div>
-              <button onClick={() => window.print()} className="bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm">
-                <FileText className="w-4 h-4 mr-2" />
-                Imprimir PDF
-              </button>
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => setQuoteCustom({...quoteCustom, isEditing: !quoteCustom.isEditing})}
+                  className={`border font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm ${quoteCustom.isEditing ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                >
+                  {quoteCustom.isEditing ? <Eye className="w-4 h-4 mr-2" /> : <Edit3 className="w-4 h-4 mr-2" />}
+                  {quoteCustom.isEditing ? 'Modo Vista Previa' : 'Modo Edición PDF'}
+                </button>
+                <button onClick={() => window.print()} className="bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm">
+                  <FileText className="w-4 h-4 mr-2" />
+                  Imprimir PDF
+                </button>
+              </div>
             </div>
 
             {/* Document to print */}
-            <div className="bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0">
+            <div className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}>
               <div className="border-b-2 border-blue-600 pb-6 mb-8 flex justify-between items-end">
                 <div>
-                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">iStudio</h1>
-                  <p className="text-blue-600 font-semibold tracking-wide">Propuesta de Servicios</p>
+                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
+                  <p className="text-blue-600 font-semibold tracking-wide">{pdfSettings.companyTagline}</p>
                 </div>
                 <div className="text-right text-sm text-gray-500">
-                  <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                  {quoteCustom.isEditing ? (
+                    <div className="flex items-center justify-end space-x-2 mb-1">
+                      <span className="font-medium text-gray-400">Fecha:</span>
+                      <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
+                    </div>
+                  ) : (
+                    <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                  )}
                   <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
                 </div>
               </div>
 
-              {(clientInfo.name || clientInfo.company) && (
+              {(clientInfo.name || clientInfo.company || quoteCustom.isEditing) && (
                 <div className="mb-8">
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</h3>
-                  <p className="font-semibold text-gray-900 text-lg">{clientInfo.name || 'Cliente'}</p>
-                  {clientInfo.company && <p className="text-gray-600">{clientInfo.company}</p>}
+                  {quoteCustom.isEditing ? (
+                    <div className="space-y-2 max-w-sm">
+                      <input type="text" placeholder="Nombre del cliente" value={clientInfo.name} onChange={e => setClientInfo({...clientInfo, name: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 text-lg font-semibold bg-blue-50 focus:bg-white" />
+                      <input type="text" placeholder="Empresa" value={clientInfo.company} onChange={e => setClientInfo({...clientInfo, company: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 text-gray-600 bg-blue-50 focus:bg-white" />
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-semibold text-gray-900 text-lg">{clientInfo.name || 'Cliente'}</p>
+                      {clientInfo.company && <p className="text-gray-600">{clientInfo.company}</p>}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {(quoteCustom.introduction || quoteCustom.isEditing) && (
+                <div className="mb-8">
+                  {quoteCustom.isEditing ? (
+                    <textarea
+                      placeholder="Escribe un párrafo introductorio (opcional)..."
+                      value={quoteCustom.introduction}
+                      onChange={e => setQuoteCustom({...quoteCustom, introduction: e.target.value})}
+                      className="w-full border border-gray-300 rounded p-3 text-gray-600 bg-blue-50 focus:bg-white min-h-[100px]"
+                    />
+                  ) : (
+                    <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{quoteCustom.introduction}</p>
+                  )}
                 </div>
               )}
 
               <div className="mb-10">
-                <h2 className="text-xl font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">Alcance del Proyecto (Modelo Híbrido)</h2>
+                {quoteCustom.isEditing ? (
+                  <input
+                    type="text"
+                    value={quoteCustom.title}
+                    onChange={e => setQuoteCustom({...quoteCustom, title: e.target.value})}
+                    className="w-full text-xl font-bold text-gray-800 mb-4 border-b border-gray-300 pb-2 bg-blue-50 focus:bg-white px-2 rounded-t"
+                  />
+                ) : (
+                  <h2 className="text-xl font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">{quoteCustom.title}</h2>
+                )}
 
                 {/* One Time Items */}
                 <div className="mb-6">
@@ -794,8 +922,15 @@ export default function App() {
               </div>
 
               <div className="mt-12 pt-8 border-t border-gray-100 text-center text-sm text-gray-500">
-                <p>Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.</p>
-                <p>Valores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.</p>
+                {quoteCustom.isEditing ? (
+                  <textarea
+                    value={quoteCustom.footer}
+                    onChange={e => setQuoteCustom({...quoteCustom, footer: e.target.value})}
+                    className="w-full border border-gray-300 rounded p-3 text-gray-500 text-center bg-blue-50 focus:bg-white min-h-[80px]"
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap">{quoteCustom.footer}</p>
+                )}
               </div>
             </div>
           </div>
