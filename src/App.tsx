@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category, Pack } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -41,6 +41,17 @@ export type PdfSettings = {
   sectionHeaders: 'plain' | 'underlined' | 'filled';
   showItemCodes: boolean;
   showCoverPage: boolean;
+  defaultTitle: string;
+  defaultIntroduction: string;
+  layoutBlocks: string[]; // Order of sections: 'cover', 'header', 'client', 'intro', 'title', 'setup', 'retainer', 'totals', 'footer'
+  tableColumns: {
+    code: boolean;
+    name: boolean;
+    description: boolean;
+    quantity: boolean;
+    unitPrice: boolean;
+    subtotal: boolean;
+  };
 };
 
 export default function App() {
@@ -100,7 +111,18 @@ export default function App() {
       themeStyle: 'professional',
       sectionHeaders: 'underlined',
       showItemCodes: true,
-      showCoverPage: true
+      showCoverPage: true,
+      defaultTitle: 'Alcance del Proyecto (Modelo Híbrido)',
+      defaultIntroduction: '',
+      layoutBlocks: ['cover', 'header', 'client', 'intro', 'title', 'setup', 'retainer', 'totals', 'footer'],
+      tableColumns: {
+        code: true,
+        name: true,
+        description: false,
+        quantity: true,
+        unitPrice: false,
+        subtotal: true
+      }
     };
 
     if (saved) {
@@ -113,11 +135,13 @@ export default function App() {
   });
 
   const [quoteCustom, setQuoteCustom] = useState({
-    title: 'Alcance del Proyecto (Modelo Híbrido)',
+    title: '',
     introduction: '',
     footer: '', // Explicit empty string, default will be populated on render if empty
     isEditing: false
   });
+
+  const [adminPdfEditing, setAdminPdfEditing] = useState(false);
 
   const evaluateItemPrice = (item: ServiceItem, customVars: Record<string, number>): number => {
     if (!item.priceFormula || item.priceFormula.trim() === '' || item.priceFormula === 'basePrice') {
@@ -479,6 +503,342 @@ export default function App() {
       currency: 'CLP',
       maximumFractionDigits: 0,
     }).format(val);
+  };
+
+  const moveLayoutBlock = (index: number, direction: -1 | 1) => {
+      const newLayout = [...pdfSettings.layoutBlocks];
+      if (index + direction < 0 || index + direction >= newLayout.length) return;
+      const temp = newLayout[index];
+      newLayout[index] = newLayout[index + direction];
+      newLayout[index + direction] = temp;
+      setPdfSettings({...pdfSettings, layoutBlocks: newLayout});
+  };
+
+  const toggleBlockVisibility = (block: string) => {
+      const isVisible = pdfSettings.layoutBlocks.includes(block);
+      let newLayout = [...pdfSettings.layoutBlocks];
+      if (isVisible) {
+          newLayout = newLayout.filter(b => b !== block);
+      } else {
+          newLayout.push(block);
+      }
+      setPdfSettings({...pdfSettings, layoutBlocks: newLayout});
+  };
+
+  const renderPdfDocument = (mode: 'admin' | 'quote') => {
+      const isGlobalEditing = mode === 'admin';
+      const isLocalEditing = mode === 'quote' && quoteCustom.isEditing;
+      const isEditing = isGlobalEditing || isLocalEditing;
+
+      const titleVal = isGlobalEditing ? pdfSettings.defaultTitle : (quoteCustom.title || pdfSettings.defaultTitle);
+      const introVal = isGlobalEditing ? pdfSettings.defaultIntroduction : (quoteCustom.introduction || pdfSettings.defaultIntroduction);
+      const footerVal = isGlobalEditing ? pdfSettings.defaultFooter : (quoteCustom.footer || pdfSettings.defaultFooter);
+
+      const renderBlockToolbar = (block: string, index: number) => {
+          if (!isGlobalEditing) return null;
+          return (
+              <div className="absolute -top-3 -right-3 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-20 bg-white shadow-md border border-gray-200 rounded px-1 py-1 print:hidden">
+                  <button onClick={() => moveLayoutBlock(index, -1)} disabled={index === 0} className="p-1 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"><ArrowUp className="w-3 h-3" /></button>
+                  <button onClick={() => moveLayoutBlock(index, 1)} disabled={index === pdfSettings.layoutBlocks.length - 1} className="p-1 hover:bg-gray-100 rounded text-gray-600 disabled:opacity-30"><ArrowDown className="w-3 h-3" /></button>
+                  <button onClick={() => toggleBlockVisibility(block)} className="p-1 hover:bg-red-50 rounded text-red-500"><EyeOff className="w-3 h-3" /></button>
+              </div>
+          );
+      };
+
+      const renderBlock = (block: string, index: number) => {
+          return (
+              <div key={block} className={`relative group ${isGlobalEditing ? 'hover:ring-2 ring-blue-300 ring-offset-4 rounded transition-all' : ''}`}>
+                  {renderBlockToolbar(block, index)}
+
+                  {block === 'cover' && pdfSettings.showCoverPage && (
+                      <div className="flex flex-col justify-center items-center min-h-[100vh] print:break-after-page text-center px-20">
+                          {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className="max-h-32 mb-12" />}
+                          <h1 className="text-6xl font-black text-gray-900 tracking-tight mb-4">{titleVal}</h1>
+                          <h2 className="text-2xl font-medium mb-16" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyName} - {pdfSettings.companyTagline}</h2>
+
+                          <div className="mt-20 border-t-2 pt-12 w-full max-w-md" style={{ borderColor: pdfSettings.accentColor }}>
+                              <p className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</p>
+                              <p className="text-2xl font-bold text-gray-900">{isGlobalEditing ? '[Nombre Cliente]' : (clientInfo.name || 'Cliente')}</p>
+                              <p className="text-xl text-gray-600 mt-1">{isGlobalEditing ? '[Empresa]' : clientInfo.company}</p>
+                              <p className="text-gray-500 mt-8">Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                          </div>
+                      </div>
+                  )}
+
+                  {block === 'header' && (
+                      <div
+                        className={`border-b-2 pb-6 mb-8 ${pdfSettings.headerLayout === 'center' ? 'flex flex-col items-center text-center' : pdfSettings.headerLayout === 'left' ? 'flex flex-col items-start' : 'flex justify-between items-end'} ${pdfSettings.showCoverPage ? 'print:pt-10' : ''}`}
+                        style={{ borderColor: pdfSettings.primaryColor }}
+                      >
+                          <div className={`${pdfSettings.headerLayout === 'center' ? 'mb-4' : pdfSettings.headerLayout === 'left' ? 'mb-4 w-full flex justify-between items-start' : 'flex items-center'}`}>
+                              {pdfSettings.headerLayout === 'left' ? (
+                                  <>
+                                      <div>
+                                          {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className="max-h-16 mb-2" />}
+                                          <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
+                                          <p className="font-semibold tracking-wide" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyTagline}</p>
+                                      </div>
+                                      <div className="text-right text-sm text-gray-500">
+                                          {isEditing ? (
+                                              <div className="flex items-center justify-end space-x-2 mb-1 print:hidden">
+                                                  <span className="font-medium text-gray-400">Fecha:</span>
+                                                  <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer" />
+                                              </div>
+                                          ) : (
+                                              <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                                          )}
+                                          <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                                      </div>
+                                  </>
+                              ) : (
+                                  <>
+                                      {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className={`max-h-16 ${pdfSettings.headerLayout === 'center' ? 'mb-4' : 'mr-4'}`} />}
+                                      <div>
+                                          <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
+                                          <p className="font-semibold tracking-wide" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyTagline}</p>
+                                      </div>
+                                  </>
+                              )}
+                          </div>
+
+                          {pdfSettings.headerLayout !== 'left' && (
+                              <div className={`text-sm text-gray-500 ${pdfSettings.headerLayout === 'center' ? 'text-center' : 'text-right'}`}>
+                                  {isEditing ? (
+                                      <div className={`flex items-center space-x-2 mb-1 print:hidden ${pdfSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
+                                          <span className="font-medium text-gray-400">Fecha:</span>
+                                          <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer" />
+                                      </div>
+                                  ) : (
+                                      <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                                  )}
+                                  <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                              </div>
+                          )}
+                      </div>
+                  )}
+
+                  {block === 'client' && (isGlobalEditing || clientInfo.name || clientInfo.company || isEditing) && (
+                      <div className={`mb-8 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
+                          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</h3>
+                          {isEditing ? (
+                              <div className="space-y-1 max-w-md print:hidden">
+                                  <input
+                                      type="text"
+                                      placeholder="Nombre del cliente o Empresa"
+                                      value={isGlobalEditing ? '[Nombre Cliente]' : clientInfo.name}
+                                      onChange={e => !isGlobalEditing && setClientInfo({...clientInfo, name: e.target.value})}
+                                      className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-lg font-semibold text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                                      readOnly={isGlobalEditing}
+                                  />
+                                  <input
+                                      type="text"
+                                      placeholder="Empresa o Cargo (opcional)"
+                                      value={isGlobalEditing ? '[Empresa]' : clientInfo.company}
+                                      onChange={e => !isGlobalEditing && setClientInfo({...clientInfo, company: e.target.value})}
+                                      className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                                      readOnly={isGlobalEditing}
+                                  />
+                              </div>
+                          ) : (
+                              <>
+                                  <p className="font-semibold text-gray-900 text-lg">{clientInfo.name || 'Cliente'}</p>
+                                  {clientInfo.company && <p className="text-gray-600">{clientInfo.company}</p>}
+                              </>
+                          )}
+                      </div>
+                  )}
+
+                  {block === 'intro' && (isGlobalEditing || introVal || isEditing) && (
+                      <div className="mb-8">
+                          {isEditing ? (
+                              <textarea
+                                  placeholder="Haz clic aquí para escribir un párrafo introductorio..."
+                                  value={introVal}
+                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultIntroduction: e.target.value}) : setQuoteCustom({...quoteCustom, introduction: e.target.value})}
+                                  className={`w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden ${isGlobalEditing ? 'bg-blue-50' : ''}`}
+                              />
+                          ) : (
+                              <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{introVal}</p>
+                          )}
+                      </div>
+                  )}
+
+                  {block === 'title' && (
+                      <div className={`mb-4 pb-2 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
+                          {isEditing ? (
+                              <input
+                                  type="text"
+                                  value={titleVal}
+                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultTitle: e.target.value}) : setQuoteCustom({...quoteCustom, title: e.target.value})}
+                                  className={`w-full text-xl font-bold text-gray-800 border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors print:hidden ${isGlobalEditing ? 'bg-blue-50' : ''}`}
+                              />
+                          ) : (
+                              <h2 className="text-xl font-bold text-gray-800">{titleVal}</h2>
+                          )}
+                      </div>
+                  )}
+
+                  {block === 'setup' && (
+                      <div className="mb-6">
+                          <h3 className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}>
+                              1. Servicios de Setup (Pago Único)
+                          </h3>
+                          <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
+                              <thead>
+                                  <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
+                                      {pdfSettings.tableColumns.code && <th className="py-2 px-2 font-medium">Código</th>}
+                                      {pdfSettings.tableColumns.name && <th className="py-2 px-2 font-medium">Descripción</th>}
+                                      {pdfSettings.tableColumns.description && <th className="py-2 px-2 font-medium">Detalle</th>}
+                                      {pdfSettings.tableColumns.quantity && <th className="py-2 px-2 font-medium text-center">Cant.</th>}
+                                      {pdfSettings.tableColumns.unitPrice && <th className="py-2 px-2 font-medium text-right">P. Unitario</th>}
+                                      {pdfSettings.tableColumns.subtotal && <th className="py-2 px-2 font-medium text-right">Subtotal</th>}
+                                  </tr>
+                              </thead>
+                              <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
+                                  {Object.values(selectedServices).filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)).length === 0 ? (
+                                      <tr><td colSpan={6} className="py-4 text-center text-gray-400 italic">No hay servicios únicos seleccionados</td></tr>
+                                  ) : (
+                                      Object.values(selectedServices)
+                                          .filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id))
+                                          .map(({item, quantity, customVariables}, idx) => {
+                                              const price = evaluateItemPrice(item, customVariables);
+                                              return (
+                                                  <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                                                      {pdfSettings.tableColumns.code && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
+                                                      {pdfSettings.tableColumns.name && <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>}
+                                                      {pdfSettings.tableColumns.description && <td className="py-3 px-2 text-xs text-gray-500 max-w-xs">{item.description}</td>}
+                                                      {pdfSettings.tableColumns.quantity && <td className="py-3 px-2 text-center text-gray-600">{quantity}</td>}
+                                                      {pdfSettings.tableColumns.unitPrice && <td className="py-3 px-2 text-right text-gray-600">{formatCurrency(price)}</td>}
+                                                      {pdfSettings.tableColumns.subtotal && <td className="py-3 px-2 text-right text-gray-900 font-medium">{formatCurrency(price * quantity)}</td>}
+                                                  </tr>
+                                              );
+                                          })
+                                  )}
+                              </tbody>
+                          </table>
+                      </div>
+                  )}
+
+                  {block === 'retainer' && Object.values(selectedServices).some(({item}) => item.recurring) && (
+                      <div className="mt-8 mb-6">
+                          <h3 className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}>
+                              2. Servicios Retainer (Mensual)
+                          </h3>
+                          <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
+                              <thead>
+                                  <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
+                                      {pdfSettings.tableColumns.code && <th className="py-2 px-2 font-medium">Código</th>}
+                                      {pdfSettings.tableColumns.name && <th className="py-2 px-2 font-medium">Descripción</th>}
+                                      {pdfSettings.tableColumns.description && <th className="py-2 px-2 font-medium">Detalle</th>}
+                                      {pdfSettings.tableColumns.quantity && <th className="py-2 px-2 font-medium text-center">Cant.</th>}
+                                      {pdfSettings.tableColumns.unitPrice && <th className="py-2 px-2 font-medium text-right">P. Unitario</th>}
+                                      {pdfSettings.tableColumns.subtotal && <th className="py-2 px-2 font-medium text-right">Valor Mensual</th>}
+                                  </tr>
+                              </thead>
+                              <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
+                                  {Object.values(selectedServices)
+                                      .filter(({item}) => item.recurring)
+                                      .map(({item, quantity, customVariables}, idx) => {
+                                          const price = evaluateItemPrice(item, customVariables);
+                                          return (
+                                              <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                                                  {pdfSettings.tableColumns.code && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
+                                                  {pdfSettings.tableColumns.name && <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>}
+                                                  {pdfSettings.tableColumns.description && <td className="py-3 px-2 text-xs text-gray-500 max-w-xs">{item.description}</td>}
+                                                  {pdfSettings.tableColumns.quantity && <td className="py-3 px-2 text-center text-gray-600">{quantity}</td>}
+                                                  {pdfSettings.tableColumns.unitPrice && <td className="py-3 px-2 text-right text-gray-600">{formatCurrency(price)}</td>}
+                                                  {pdfSettings.tableColumns.subtotal && <td className="py-3 px-2 text-right text-gray-900 font-medium">{formatCurrency(price * quantity)}</td>}
+                                              </tr>
+                                          );
+                                      })}
+                              </tbody>
+                          </table>
+                      </div>
+                  )}
+
+                  {block === 'totals' && (
+                      <div className="mt-12 p-8 rounded-xl print:break-inside-avoid" style={{ backgroundColor: pdfSettings.themeStyle === 'creative' ? pdfSettings.accentColor + '10' : '#f9fafb', border: `1px solid ${pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '#e5e7eb'}` }}>
+                          <h3 className="font-bold text-gray-800 mb-6 uppercase tracking-wider" style={{ color: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '' }}>
+                              Resumen de Inversión
+                          </h3>
+                          <div className="space-y-3 mb-6 pb-6 border-b" style={{ borderColor: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor + '30' : '#e5e7eb' }}>
+                              <div className="flex justify-between text-sm font-medium text-gray-600">
+                                  <span>Subtotal Setup de Proyecto</span>
+                                  <span>{formatCurrency(calculatePrices.oneTimeBase)}</span>
+                              </div>
+                              {modifiers.urgency && (
+                                  <div className="flex justify-between text-sm text-gray-500">
+                                      <span>Recargo por Urgencia</span>
+                                      <span>{formatCurrency(calculatePrices.urgencyModifier)}</span>
+                                  </div>
+                              )}
+                              {modifiers.financing && (
+                                  <div className="flex justify-between text-sm text-gray-500">
+                                      <span>Recargo por Financiamiento</span>
+                                      <span>{formatCurrency(calculatePrices.financingModifier)}</span>
+                                  </div>
+                              )}
+                              {modifiers.successFee && (
+                                  <div className="flex justify-between text-sm text-gray-500">
+                                      <span>Tasa de Riesgo/Éxito (Startups)</span>
+                                      <span>{formatCurrency(calculatePrices.successFeeModifier)}</span>
+                                  </div>
+                              )}
+                              {modifiers.thirdPartyMarkup && (
+                                  <div className="flex justify-between text-sm text-gray-500">
+                                      <span>Markup de Terceros</span>
+                                      <span>{formatCurrency(calculatePrices.thirdPartyModifier)}</span>
+                                  </div>
+                              )}
+                          </div>
+
+                          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                              <div className="flex-1 w-full">
+                                  <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Inicial Única</p>
+                                  <p className="text-4xl font-black text-gray-900">{formatCurrency(calculatePrices.oneTimeTotal)}</p>
+                              </div>
+                              {calculatePrices.recurringTotal > 0 && (
+                                  <div className="flex-1 w-full md:text-right">
+                                      <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Mensual (Retainer)</p>
+                                      <p className="text-3xl font-black" style={{ color: pdfSettings.primaryColor }}>{formatCurrency(calculatePrices.recurringTotal)}<span className="text-lg font-medium text-gray-500">/mes</span></p>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  )}
+
+                  {block === 'footer' && (
+                      <div className="mt-12 pt-8 border-t border-gray-100 text-center text-sm text-gray-500">
+                          {isEditing ? (
+                              <textarea
+                                  value={footerVal}
+                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultFooter: e.target.value}) : setQuoteCustom({...quoteCustom, footer: e.target.value})}
+                                  className={`w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-500 text-center focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden ${isGlobalEditing ? 'bg-blue-50' : ''}`}
+                              />
+                          ) : (
+                              <p className="whitespace-pre-wrap">{footerVal}</p>
+                          )}
+                      </div>
+                  )}
+              </div>
+          );
+      };
+
+      return (
+          <div className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${pdfSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${isLocalEditing ? 'ring-4 ring-blue-100 relative' : ''} ${isGlobalEditing ? 'min-h-[800px]' : ''}`}>
+              {isLocalEditing && (
+                  <div className="absolute -top-4 -right-4 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10 print:hidden">
+                      MODO EDICIÓN VISUAL
+                  </div>
+              )}
+              {isGlobalEditing && (
+                  <div className="absolute -top-4 -right-4 bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10 print:hidden">
+                      EDITOR ESTRUCTURAL DE PLANTILLA
+                  </div>
+              )}
+              {pdfSettings.layoutBlocks.map((block, index) => renderBlock(block, index))}
+          </div>
+      );
   };
 
   return (
@@ -942,14 +1302,35 @@ export default function App() {
                                 <h2 className="text-lg font-bold text-gray-800">Configuración Base del PDF</h2>
                                 <p className="text-sm text-gray-500">Define los valores globales que aparecerán por defecto en todas las cotizaciones.</p>
                             </div>
-                            <button
-                                onClick={handleSavePdfSettings}
-                                className="flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
-                            >
-                                <Save className="w-4 h-4 mr-1" />
-                                Guardar Config. PDF
-                            </button>
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => setAdminPdfEditing(!adminPdfEditing)}
+                                    className={`border font-medium py-1.5 px-3 rounded-md flex items-center transition-colors shadow-sm text-sm ${adminPdfEditing ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                                >
+                                    {adminPdfEditing ? <Settings className="w-4 h-4 mr-2" /> : <Edit3 className="w-4 h-4 mr-2" />}
+                                    {adminPdfEditing ? 'Ocultar Editor Visual' : 'Editor Visual Base'}
+                                </button>
+                                <button
+                                    onClick={handleSavePdfSettings}
+                                    className="flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+                                >
+                                    <Save className="w-4 h-4 mr-1" />
+                                    Guardar Config. PDF
+                                </button>
+                            </div>
                         </div>
+
+                        {adminPdfEditing && (
+                            <div className="bg-gray-200 p-8 border-b border-gray-300 overflow-x-auto">
+                                <div className="max-w-4xl mx-auto mb-4 bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex justify-center gap-4 text-sm font-medium text-gray-600">
+                                    <p><span className="font-bold text-gray-900">Editor Estructural:</span> Arrastra o usa las flechas que aparecen sobre cada bloque para reordenarlos o esconderlos.</p>
+                                </div>
+                                <div className="transform origin-top transition-transform min-w-[800px] scale-90 mx-auto">
+                                    {renderPdfDocument('admin')}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
                             {/* Basics */}
                              <div className="md:col-span-6">
@@ -1075,7 +1456,27 @@ export default function App() {
                                 </select>
                             </div>
 
-                            <div className="md:col-span-12 flex flex-wrap gap-6 pt-4">
+                            <div className="md:col-span-12 pt-4">
+                                <label className="block text-sm font-bold text-gray-800 mb-3 border-b pb-2">Control de Columnas en Tablas</label>
+                                <div className="flex flex-wrap gap-6">
+                                    {Object.keys(pdfSettings.tableColumns).map((col) => (
+                                        <label key={col} className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={pdfSettings.tableColumns[col as keyof PdfSettings['tableColumns']]}
+                                                onChange={(e) => setPdfSettings({
+                                                    ...pdfSettings,
+                                                    tableColumns: { ...pdfSettings.tableColumns, [col]: e.target.checked }
+                                                })}
+                                                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                            />
+                                            <span className="ml-2 block text-xs font-medium text-gray-700 uppercase">{col}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-12 flex flex-wrap gap-6 pt-4 border-t border-gray-100">
                                 <label className="flex items-center cursor-pointer">
                                     <input
                                         type="checkbox"
@@ -1088,15 +1489,15 @@ export default function App() {
                                 <label className="flex items-center cursor-pointer">
                                     <input
                                         type="checkbox"
-                                        checked={pdfSettings.showItemCodes}
-                                        onChange={(e) => setPdfSettings({...pdfSettings, showItemCodes: e.target.checked})}
+                                        checked={pdfSettings.layoutBlocks.includes('cover')}
+                                        onChange={() => toggleBlockVisibility('cover')}
                                         className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     />
-                                    <span className="ml-3 block text-sm font-medium text-gray-700">Mostrar Códigos de Ítems (ej. C-01)</span>
+                                    <span className="ml-3 block text-sm font-medium text-gray-700">El bloque de portada está visible en la estructura</span>
                                 </label>
                             </div>
 
-                             <div className="md:col-span-12 mt-2">
+                             <div className="md:col-span-12 mt-2 border-t pt-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Textos de Cierre por Defecto (Términos, disclaimer)</label>
                                 <textarea
                                     value={pdfSettings.defaultFooter}
