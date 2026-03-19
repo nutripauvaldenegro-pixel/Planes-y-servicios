@@ -221,8 +221,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans">
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans print:bg-white">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10 print:hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -263,7 +263,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 print:p-0 print:max-w-none print:m-0">
         {/* --- CONFIGURE TAB --- */}
         {activeTab === 'configure' && (
           <div className="space-y-8 animate-in fade-in duration-300">
@@ -651,8 +651,8 @@ export default function App() {
 
         {/* --- QUOTE TAB --- */}
         {activeTab === 'quote' && (
-          <div className="space-y-6 animate-in fade-in duration-300">
-             <div className="flex justify-between items-center mb-6">
+          <div className="space-y-6 animate-in fade-in duration-300 print:space-y-0 print:block">
+             <div className="flex justify-between items-center mb-6 print:hidden">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Quote: Propuesta Comercial</h1>
                 <p className="text-gray-500 mt-1">Salida final lista para ser enviada o impresa por el cliente.</p>
@@ -664,7 +664,7 @@ export default function App() {
             </div>
 
             {/* Document to print */}
-            <div className="bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0">
+            <div className="bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0">
               <div className="border-b-2 border-blue-600 pb-6 mb-8 flex justify-between items-end">
                 <div>
                   <h1 className="text-3xl font-black text-gray-900 tracking-tight">iStudio</h1>
