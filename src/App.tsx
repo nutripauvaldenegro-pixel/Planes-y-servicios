@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -15,8 +15,26 @@ type Modifiers = {
   thirdPartyMarkup: boolean;
 };
 
+export type SavedQuote = {
+  id: string;
+  date: string;
+  clientInfo: { name: string; company: string; email: string; date: string };
+  selectedServices: Record<string, SelectedService>;
+  modifiers: Modifiers;
+  quoteCustom: { title: string; introduction: string; footer: string; isEditing: boolean };
+  totals: { oneTimeTotal: number; recurringTotal: number };
+};
+
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'configure' | 'price' | 'quote' | 'admin'>('configure');
+  const [activeTab, setActiveTab] = useState<'configure' | 'price' | 'quote' | 'admin' | 'history'>('configure');
+
+  const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>(() => {
+    const saved = localStorage.getItem('cpq-saved-quotes');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing saved quotes', e); }
+    }
+    return [];
+  });
 
   const [catalog, setCatalog] = useState<Category[]>(() => {
     const saved = localStorage.getItem('cpq-catalog');
@@ -245,6 +263,65 @@ export default function App() {
       }
   };
 
+  const handleSaveAndPrint = () => {
+    // Generate a unique ID based on date and time
+    const quoteId = `QT-${Date.now().toString(36).toUpperCase()}`;
+
+    const newQuote: SavedQuote = {
+      id: quoteId,
+      date: new Date().toISOString(),
+      clientInfo: { ...clientInfo },
+      selectedServices: { ...selectedServices },
+      modifiers: { ...modifiers },
+      quoteCustom: { ...quoteCustom, isEditing: false }, // don't save editing state
+      totals: {
+        oneTimeTotal: calculatePrices.oneTimeTotal,
+        recurringTotal: calculatePrices.recurringTotal
+      }
+    };
+
+    const newSavedQuotes = [newQuote, ...savedQuotes];
+    setSavedQuotes(newSavedQuotes);
+    localStorage.setItem('cpq-saved-quotes', JSON.stringify(newSavedQuotes));
+
+    // Close edit mode if it was open to ensure it prints clean
+    if (quoteCustom.isEditing) {
+      setQuoteCustom(prev => ({ ...prev, isEditing: false }));
+      // Give React a tick to update the DOM before printing
+      setTimeout(() => window.print(), 100);
+    } else {
+      window.print();
+    }
+  };
+
+  const loadSavedQuote = (quote: SavedQuote) => {
+    if (confirm('¿Estás seguro de cargar este presupuesto? Perderás el trabajo actual no guardado.')) {
+      setClientInfo(quote.clientInfo);
+      setSelectedServices(quote.selectedServices);
+      setModifiers(quote.modifiers);
+      setQuoteCustom({ ...quote.quoteCustom, isEditing: false });
+      setActiveTab('quote');
+    }
+  };
+
+  const deleteSavedQuote = (id: string) => {
+    if (confirm('¿Estás seguro de eliminar este registro del historial?')) {
+      const updatedQuotes = savedQuotes.filter(q => q.id !== id);
+      setSavedQuotes(updatedQuotes);
+      localStorage.setItem('cpq-saved-quotes', JSON.stringify(updatedQuotes));
+    }
+  };
+
+  const quotesByClient = useMemo(() => {
+    const groups: Record<string, SavedQuote[]> = {};
+    savedQuotes.forEach(quote => {
+      const clientName = quote.clientInfo.name || 'Sin Cliente Especificado';
+      if (!groups[clientName]) groups[clientName] = [];
+      groups[clientName].push(quote);
+    });
+    return groups;
+  }, [savedQuotes]);
+
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('es-CL', {
       style: 'currency',
@@ -283,6 +360,13 @@ export default function App() {
               >
                 <FileText className="w-4 h-4 mr-2" />
                 3. Quote (Q)
+              </button>
+              <button
+                onClick={() => setActiveTab('history')}
+                className={`flex items-center px-3 py-2 text-sm font-medium border-b-2 ${activeTab === 'history' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}
+              >
+                <FolderOpen className="w-4 h-4 mr-2" />
+                Historial
               </button>
               <button
                 onClick={() => setActiveTab('admin')}
@@ -551,6 +635,79 @@ export default function App() {
           </div>
         )}
 
+        {/* --- HISTORY TAB --- */}
+        {activeTab === 'history' && (
+          <div className="space-y-8 animate-in fade-in duration-300">
+            <div className="mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Historial de Propuestas</h1>
+                <p className="text-gray-500 mt-1">Respaldo de todas las cotizaciones generadas y guardadas.</p>
+              </div>
+            </div>
+
+            {Object.keys(quotesByClient).length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center">
+                <FolderOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-1">El historial está vacío</h3>
+                <p className="text-gray-500">Las cotizaciones aparecerán aquí organizadas por cliente una vez que uses el botón "Guardar e Imprimir PDF" en la pestaña Quote.</p>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                {Object.entries(quotesByClient).map(([clientName, quotes]) => (
+                  <div key={clientName} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center">
+                      <FolderOpen className="w-5 h-5 text-indigo-500 mr-3" />
+                      <h2 className="text-lg font-bold text-gray-800 flex-1">{clientName}</h2>
+                      <span className="text-sm font-medium text-gray-500 bg-white border px-2 py-0.5 rounded-md">{quotes.length} {quotes.length === 1 ? 'documento' : 'documentos'}</span>
+                    </div>
+
+                    <div className="divide-y divide-gray-100 p-0">
+                      {quotes.map(quote => (
+                        <div key={quote.id} className="p-4 grid grid-cols-12 gap-4 items-center hover:bg-gray-50 transition-colors group">
+                          <div className="col-span-4">
+                            <p className="font-semibold text-gray-900">{quote.quoteCustom.title}</p>
+                            <p className="text-xs text-gray-500">ID: <span className="font-mono">{quote.id}</span></p>
+                          </div>
+
+                          <div className="col-span-3">
+                            <p className="text-sm font-medium text-gray-700">{new Date(quote.date).toLocaleString('es-CL')}</p>
+                            <p className="text-xs text-gray-500">Fecha de emisión</p>
+                          </div>
+
+                          <div className="col-span-3 text-right">
+                            <p className="text-sm font-bold text-gray-900">{formatCurrency(quote.totals.oneTimeTotal)}</p>
+                            {quote.totals.recurringTotal > 0 && (
+                              <p className="text-xs font-semibold text-purple-600">+{formatCurrency(quote.totals.recurringTotal)}/mes</p>
+                            )}
+                          </div>
+
+                          <div className="col-span-2 flex justify-end space-x-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={() => loadSavedQuote(quote)}
+                              className="text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 p-2 rounded-md transition-colors flex items-center"
+                              title="Cargar y Editar"
+                            >
+                              <Download className="w-4 h-4 mr-1" />
+                              <span className="text-xs font-medium">Cargar</span>
+                            </button>
+                            <button
+                              onClick={() => deleteSavedQuote(quote.id)}
+                              className="text-red-400 hover:text-red-600 bg-red-50 hover:bg-red-100 p-2 rounded-md transition-colors flex items-center"
+                              title="Eliminar"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* --- ADMIN TAB --- */}
         {activeTab === 'admin' && (
             <div className="space-y-8 animate-in fade-in duration-300">
@@ -744,9 +901,9 @@ export default function App() {
                   {quoteCustom.isEditing ? <Eye className="w-4 h-4 mr-2" /> : <Edit3 className="w-4 h-4 mr-2" />}
                   {quoteCustom.isEditing ? 'Modo Vista Previa' : 'Modo Edición PDF'}
                 </button>
-                <button onClick={() => window.print()} className="bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm">
+                <button onClick={handleSaveAndPrint} className="bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm">
                   <FileText className="w-4 h-4 mr-2" />
-                  Imprimir PDF
+                  Guardar e Imprimir PDF
                 </button>
               </div>
             </div>
