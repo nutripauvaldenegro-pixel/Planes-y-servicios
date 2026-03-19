@@ -1064,8 +1064,14 @@ export default function App() {
 
             {/* Document to print */}
             <div
-              className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${pdfSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}
+              className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${pdfSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${quoteCustom.isEditing ? 'ring-4 ring-blue-100 relative' : ''}`}
             >
+              {quoteCustom.isEditing && (
+                <div className="absolute -top-4 -right-4 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10 print:hidden">
+                  MODO EDICIÓN VISUAL
+                </div>
+              )}
+
               {/* Cover Page */}
               {pdfSettings.showCoverPage && (
                 <div className="hidden print:flex flex-col justify-center items-center min-h-[100vh] print:break-after-page text-center px-20">
@@ -1096,9 +1102,14 @@ export default function App() {
                         </div>
                         <div className="text-right text-sm text-gray-500">
                           {quoteCustom.isEditing ? (
-                            <div className="flex items-center justify-end space-x-2 mb-1">
+                            <div className="flex items-center justify-end space-x-2 mb-1 print:hidden">
                               <span className="font-medium text-gray-400">Fecha:</span>
-                              <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
+                              <input
+                                type="date"
+                                value={clientInfo.date}
+                                onChange={e => setClientInfo({...clientInfo, date: e.target.value})}
+                                className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer"
+                              />
                             </div>
                           ) : (
                             <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
@@ -1120,9 +1131,14 @@ export default function App() {
                 {pdfSettings.headerLayout !== 'left' && (
                   <div className={`text-sm text-gray-500 ${pdfSettings.headerLayout === 'center' ? 'text-center' : 'text-right'}`}>
                     {quoteCustom.isEditing ? (
-                      <div className={`flex items-center space-x-2 mb-1 ${pdfSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
+                      <div className={`flex items-center space-x-2 mb-1 print:hidden ${pdfSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
                         <span className="font-medium text-gray-400">Fecha:</span>
-                        <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
+                        <input
+                          type="date"
+                          value={clientInfo.date}
+                          onChange={e => setClientInfo({...clientInfo, date: e.target.value})}
+                          className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer"
+                        />
                       </div>
                     ) : (
                       <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
@@ -1136,9 +1152,21 @@ export default function App() {
                 <div className={`mb-8 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</h3>
                   {quoteCustom.isEditing ? (
-                    <div className="space-y-2 max-w-sm">
-                      <input type="text" placeholder="Nombre del cliente" value={clientInfo.name} onChange={e => setClientInfo({...clientInfo, name: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 text-lg font-semibold bg-blue-50 focus:bg-white" />
-                      <input type="text" placeholder="Empresa" value={clientInfo.company} onChange={e => setClientInfo({...clientInfo, company: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 text-gray-600 bg-blue-50 focus:bg-white" />
+                    <div className="space-y-1 max-w-md print:hidden">
+                      <input
+                        type="text"
+                        placeholder="Nombre del cliente o Empresa"
+                        value={clientInfo.name}
+                        onChange={e => setClientInfo({...clientInfo, name: e.target.value})}
+                        className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-lg font-semibold text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Empresa o Cargo (opcional)"
+                        value={clientInfo.company}
+                        onChange={e => setClientInfo({...clientInfo, company: e.target.value})}
+                        className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
+                      />
                     </div>
                   ) : (
                     <>
@@ -1153,10 +1181,10 @@ export default function App() {
                 <div className="mb-8">
                   {quoteCustom.isEditing ? (
                     <textarea
-                      placeholder="Escribe un párrafo introductorio (opcional)..."
+                      placeholder="Haz clic aquí para escribir un párrafo introductorio (opcional)..."
                       value={quoteCustom.introduction}
                       onChange={e => setQuoteCustom({...quoteCustom, introduction: e.target.value})}
-                      className="w-full border border-gray-300 rounded p-3 text-gray-600 bg-blue-50 focus:bg-white min-h-[100px]"
+                      className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden"
                     />
                   ) : (
                     <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">{quoteCustom.introduction}</p>
@@ -1166,15 +1194,19 @@ export default function App() {
 
               <div className="mb-10">
                 {quoteCustom.isEditing ? (
-                  <input
-                    type="text"
-                    value={quoteCustom.title}
-                    onChange={e => setQuoteCustom({...quoteCustom, title: e.target.value})}
-                    className={`w-full text-xl font-bold text-gray-800 mb-4 pb-2 bg-blue-50 focus:bg-white px-2 rounded ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}
-                  />
+                  <div className={`mb-4 pb-2 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
+                    <input
+                      type="text"
+                      value={quoteCustom.title}
+                      onChange={e => setQuoteCustom({...quoteCustom, title: e.target.value})}
+                      className="w-full text-xl font-bold text-gray-800 border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors print:hidden"
+                    />
+                  </div>
                 ) : (
                   <h2 className={`text-xl font-bold text-gray-800 mb-4 pb-2 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>{quoteCustom.title}</h2>
                 )}
+
+                {/* One Time Items */}
 
                 {/* One Time Items */}
                 <div className="mb-6">
@@ -1305,7 +1337,7 @@ export default function App() {
                   <textarea
                     value={quoteCustom.footer || pdfSettings.defaultFooter}
                     onChange={e => setQuoteCustom({...quoteCustom, footer: e.target.value})}
-                    className="w-full border border-gray-300 rounded p-3 text-gray-500 text-center bg-blue-50 focus:bg-white min-h-[80px]"
+                    className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-500 text-center focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden"
                   />
                 ) : (
                   <p className="whitespace-pre-wrap">{quoteCustom.footer || pdfSettings.defaultFooter}</p>
