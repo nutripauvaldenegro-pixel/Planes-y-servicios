@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -141,8 +141,8 @@ export default function App() {
     };
   }, [selectedServices, modifiers, catalog]);
 
-  const saveCatalog = (newCatalog: Category[]) => {
-    setCatalog(newCatalog);
+  // Only save to localStorage when explicitly requested
+  const saveCatalogState = (newCatalog: Category[]) => {
     localStorage.setItem('cpq-catalog', JSON.stringify(newCatalog));
   };
 
@@ -154,10 +154,10 @@ export default function App() {
         items: cat.items.map(item => item.id === oldItemId ? updatedItem : item)
       };
     });
-    saveCatalog(newCatalog);
+    // Update state, but don't save to localStorage yet
+    setCatalog(newCatalog);
 
     // Update selectedServices if modified item is selected to reflect changes instantly
-    // and handle the case where the id was changed
     setSelectedServices(prev => {
         const newSelected = { ...prev };
         if (newSelected[oldItemId]) {
@@ -178,7 +178,7 @@ export default function App() {
         items: [...cat.items, { id: newItemId, name: 'Nuevo Item', description: '', basePrice: 0, unit: 'global', recurring: false }]
       };
     });
-    saveCatalog(newCatalog);
+    setCatalog(newCatalog);
   };
 
   const handleDeleteItem = (categoryId: string, itemId: string) => {
@@ -189,13 +189,19 @@ export default function App() {
             items: cat.items.filter(item => item.id !== itemId)
         };
     });
-    saveCatalog(newCatalog);
+    setCatalog(newCatalog);
 
     if (selectedServices[itemId]) {
         const newSelected = {...selectedServices};
         delete newSelected[itemId];
         setSelectedServices(newSelected);
     }
+  };
+
+  const handleSaveCategory = () => {
+      saveCatalogState(catalog);
+      // Optional: Show some success feedback
+      alert('Cambios guardados exitosamente en la memoria del navegador.');
   };
 
   const handleResetCatalog = () => {
@@ -537,13 +543,22 @@ export default function App() {
                                     <h2 className="text-lg font-bold text-gray-800">{category.name}</h2>
                                     <p className="text-sm text-gray-500">{category.description}</p>
                                 </div>
-                                <button
-                                    onClick={() => handleAddItem(category.id)}
-                                    className="flex items-center text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
-                                >
-                                    <Plus className="w-4 h-4 mr-1" />
-                                    Añadir Item
-                                </button>
+                                <div className="flex items-center space-x-3">
+                                    <button
+                                        onClick={() => handleAddItem(category.id)}
+                                        className="flex items-center text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                                    >
+                                        <Plus className="w-4 h-4 mr-1" />
+                                        Añadir Item
+                                    </button>
+                                    <button
+                                        onClick={() => handleSaveCategory()}
+                                        className="flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm"
+                                    >
+                                        <Save className="w-4 h-4 mr-1" />
+                                        Guardar Cambios
+                                    </button>
+                                </div>
                             </div>
 
                             <div className="divide-y divide-gray-100 p-2">
