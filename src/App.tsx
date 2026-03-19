@@ -23,6 +23,19 @@ export type SavedQuote = {
   modifiers: Modifiers;
   quoteCustom: { title: string; introduction: string; footer: string; isEditing: boolean };
   totals: { oneTimeTotal: number; recurringTotal: number };
+  pdfSettings?: PdfSettings; // Optional for backward compatibility with old saves
+};
+
+export type PdfSettings = {
+  companyName: string;
+  companyTagline: string;
+  defaultFooter: string;
+  primaryColor: string;
+  fontFamily: string;
+  logoUrl: string;
+  headerLayout: 'left' | 'center' | 'split';
+  tableStyle: 'minimal' | 'bordered' | 'striped';
+  showItemCodes: boolean;
 };
 
 export default function App() {
@@ -59,33 +72,35 @@ export default function App() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  const [pdfSettings, setPdfSettings] = useState(() => {
+  const [pdfSettings, setPdfSettings] = useState<PdfSettings>(() => {
     const saved = localStorage.getItem('cpq-pdf-settings');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error(e); }
-    }
-    return {
+    const defaults: PdfSettings = {
       companyName: 'iStudio',
       companyTagline: 'Propuesta de Servicios',
-      defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.'
+      defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.',
+      primaryColor: '#2563eb', // Tailwind blue-600
+      fontFamily: 'font-sans',
+      logoUrl: '',
+      headerLayout: 'split',
+      tableStyle: 'minimal',
+      showItemCodes: true
     };
+
+    if (saved) {
+      try {
+          const parsed = JSON.parse(saved);
+          return { ...defaults, ...parsed };
+      } catch (e) { console.error(e); }
+    }
+    return defaults;
   });
 
   const [quoteCustom, setQuoteCustom] = useState({
     title: 'Alcance del Proyecto (Modelo Híbrido)',
     introduction: '',
-    footer: '',
+    footer: '', // Explicit empty string, default will be populated on render if empty
     isEditing: false
   });
-
-  // Initialize quote footer with default setting
-  useMemo(() => {
-    if (!quoteCustom.footer && !quoteCustom.isEditing) {
-      setTimeout(() => {
-          setQuoteCustom(prev => ({ ...prev, footer: pdfSettings.defaultFooter }));
-      }, 0);
-    }
-  }, [pdfSettings.defaultFooter, quoteCustom.footer, quoteCustom.isEditing]);
 
   // Toggle selection
   const handleSelectService = (item: ServiceItem) => {
@@ -277,7 +292,8 @@ export default function App() {
       totals: {
         oneTimeTotal: calculatePrices.oneTimeTotal,
         recurringTotal: calculatePrices.recurringTotal
-      }
+      },
+      pdfSettings: { ...pdfSettings }
     };
 
     const newSavedQuotes = [newQuote, ...savedQuotes];
@@ -300,6 +316,9 @@ export default function App() {
       setSelectedServices(quote.selectedServices);
       setModifiers(quote.modifiers);
       setQuoteCustom({ ...quote.quoteCustom, isEditing: false });
+      if (quote.pdfSettings) {
+        setPdfSettings(quote.pdfSettings);
+      }
       setActiveTab('quote');
     }
   };
@@ -741,8 +760,9 @@ export default function App() {
                                 Guardar Config. PDF
                             </button>
                         </div>
-                        <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                             <div>
+                        <div className="p-6 grid grid-cols-1 md:grid-cols-12 gap-6">
+                            {/* Basics */}
+                             <div className="md:col-span-6">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre de Empresa Emisora</label>
                                 <input
                                     type="text"
@@ -751,16 +771,94 @@ export default function App() {
                                     className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-gray-900 font-medium"
                                 />
                             </div>
-                             <div>
+                             <div className="md:col-span-6">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Título/Eslogan Principal</label>
                                 <input
                                     type="text"
                                     value={pdfSettings.companyTagline}
                                     onChange={(e) => setPdfSettings({...pdfSettings, companyTagline: e.target.value})}
-                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-blue-600 font-medium"
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 font-medium"
+                                    style={{ color: pdfSettings.primaryColor }}
                                 />
                             </div>
-                             <div className="md:col-span-2">
+
+                            <div className="md:col-span-12">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">URL del Logo (Opcional)</label>
+                                <input
+                                    type="url"
+                                    placeholder="https://ejemplo.com/logo.png"
+                                    value={pdfSettings.logoUrl || ''}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, logoUrl: e.target.value})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 text-gray-600"
+                                />
+                            </div>
+
+                            {/* Aesthetics */}
+                            <div className="md:col-span-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Color Principal</label>
+                                <div className="flex items-center space-x-3 border border-gray-300 rounded-md p-1 pl-3 bg-white">
+                                    <span className="text-gray-600 font-mono text-sm flex-1">{pdfSettings.primaryColor}</span>
+                                    <input
+                                        type="color"
+                                        value={pdfSettings.primaryColor}
+                                        onChange={(e) => setPdfSettings({...pdfSettings, primaryColor: e.target.value})}
+                                        className="h-8 w-12 cursor-pointer border-0 p-0 rounded"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Tipografía</label>
+                                <select
+                                    value={pdfSettings.fontFamily}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, fontFamily: e.target.value})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 bg-white"
+                                >
+                                    <option value="font-sans">Sans (Moderna)</option>
+                                    <option value="font-serif">Serif (Clásica/Formal)</option>
+                                    <option value="font-mono">Mono (Técnica)</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Estructura del Encabezado</label>
+                                <select
+                                    value={pdfSettings.headerLayout}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, headerLayout: e.target.value as PdfSettings['headerLayout']})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 bg-white"
+                                >
+                                    <option value="split">Logo izq. / Datos der.</option>
+                                    <option value="left">Alineado a la Izquierda</option>
+                                    <option value="center">Centrado (Logo arriba)</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Estilo de Tablas</label>
+                                <select
+                                    value={pdfSettings.tableStyle}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, tableStyle: e.target.value as PdfSettings['tableStyle']})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 bg-white"
+                                >
+                                    <option value="minimal">Minimalista (Líneas finas)</option>
+                                    <option value="bordered">Con Bordes completos</option>
+                                    <option value="striped">Rayado (Zebra)</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-8 flex items-center pt-6">
+                                <label className="flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={pdfSettings.showItemCodes}
+                                        onChange={(e) => setPdfSettings({...pdfSettings, showItemCodes: e.target.checked})}
+                                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <span className="ml-3 block text-sm font-medium text-gray-700">Mostrar Códigos de Ítems (ej. C-01, P-03) en el PDF</span>
+                                </label>
+                            </div>
+
+                             <div className="md:col-span-12 mt-2">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Textos de Cierre por Defecto (Términos, disclaimer)</label>
                                 <textarea
                                     value={pdfSettings.defaultFooter}
@@ -909,23 +1007,57 @@ export default function App() {
             </div>
 
             {/* Document to print */}
-            <div className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}>
-              <div className="border-b-2 border-blue-600 pb-6 mb-8 flex justify-between items-end">
-                <div>
-                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
-                  <p className="text-blue-600 font-semibold tracking-wide">{pdfSettings.companyTagline}</p>
-                </div>
-                <div className="text-right text-sm text-gray-500">
-                  {quoteCustom.isEditing ? (
-                    <div className="flex items-center justify-end space-x-2 mb-1">
-                      <span className="font-medium text-gray-400">Fecha:</span>
-                      <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
-                    </div>
+            <div
+              className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}
+            >
+              <div
+                className={`border-b-2 pb-6 mb-8 ${pdfSettings.headerLayout === 'center' ? 'flex flex-col items-center text-center' : pdfSettings.headerLayout === 'left' ? 'flex flex-col items-start' : 'flex justify-between items-end'}`}
+                style={{ borderColor: pdfSettings.primaryColor }}
+              >
+                <div className={`${pdfSettings.headerLayout === 'center' ? 'mb-4' : pdfSettings.headerLayout === 'left' ? 'mb-4 w-full flex justify-between items-start' : 'flex items-center'}`}>
+                  {pdfSettings.headerLayout === 'left' ? (
+                    <>
+                        <div>
+                          {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className="max-h-16 mb-2" />}
+                          <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
+                          <p className="font-semibold tracking-wide" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyTagline}</p>
+                        </div>
+                        <div className="text-right text-sm text-gray-500">
+                          {quoteCustom.isEditing ? (
+                            <div className="flex items-center justify-end space-x-2 mb-1">
+                              <span className="font-medium text-gray-400">Fecha:</span>
+                              <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
+                            </div>
+                          ) : (
+                            <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                          )}
+                          <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                        </div>
+                    </>
                   ) : (
-                    <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                    <>
+                      {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className={`max-h-16 ${pdfSettings.headerLayout === 'center' ? 'mb-4' : 'mr-4'}`} />}
+                      <div>
+                        <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
+                        <p className="font-semibold tracking-wide" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyTagline}</p>
+                      </div>
+                    </>
                   )}
-                  <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
                 </div>
+
+                {pdfSettings.headerLayout !== 'left' && (
+                  <div className={`text-sm text-gray-500 ${pdfSettings.headerLayout === 'center' ? 'text-center' : 'text-right'}`}>
+                    {quoteCustom.isEditing ? (
+                      <div className={`flex items-center space-x-2 mb-1 ${pdfSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
+                        <span className="font-medium text-gray-400">Fecha:</span>
+                        <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-gray-300 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white" />
+                      </div>
+                    ) : (
+                      <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                    )}
+                    <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                  </div>
+                )}
               </div>
 
               {(clientInfo.name || clientInfo.company || quoteCustom.isEditing) && (
@@ -975,24 +1107,24 @@ export default function App() {
                 {/* One Time Items */}
                 <div className="mb-6">
                   <h3 className="font-semibold text-gray-700 mb-3 bg-gray-50 p-2 rounded">1. Servicios de Setup (Pago Único)</h3>
-                  <table className="w-full text-sm text-left">
+                  <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                     <thead>
-                      <tr className="border-b border-gray-200 text-gray-500">
-                        <th className="py-2 font-medium">Código</th>
-                        <th className="py-2 font-medium">Descripción</th>
-                        <th className="py-2 font-medium text-center">Cant.</th>
-                        <th className="py-2 font-medium text-right">Subtotal</th>
+                      <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
+                        {pdfSettings.showItemCodes && <th className="py-2 px-2 font-medium">Código</th>}
+                        <th className="py-2 px-2 font-medium">Descripción</th>
+                        <th className="py-2 px-2 font-medium text-center">Cant.</th>
+                        <th className="py-2 px-2 font-medium text-right">Subtotal</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
                       {Object.values(selectedServices)
                         .filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id))
-                        .map(({item, quantity}) => (
-                        <tr key={item.id}>
-                          <td className="py-3 font-mono text-xs text-gray-500">{item.id}</td>
-                          <td className="py-3 font-medium text-gray-900">{item.name}</td>
-                          <td className="py-3 text-center text-gray-600">{quantity}</td>
-                          <td className="py-3 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
+                        .map(({item, quantity}, idx) => (
+                        <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                          {pdfSettings.showItemCodes && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
+                          <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>
+                          <td className="py-3 px-2 text-center text-gray-600">{quantity}</td>
+                          <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -1002,23 +1134,23 @@ export default function App() {
                 {/* Recurring Items */}
                 {Object.values(selectedServices).some(({item}) => item.recurring) && (
                   <div>
-                    <h3 className="font-semibold text-gray-700 mb-3 bg-purple-50 p-2 rounded text-purple-900">2. Servicios Retainer (Mensual)</h3>
-                    <table className="w-full text-sm text-left">
+                    <h3 className="font-semibold text-gray-700 mb-3 bg-gray-50 p-2 rounded">2. Servicios Retainer (Mensual)</h3>
+                    <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                       <thead>
-                        <tr className="border-b border-gray-200 text-gray-500">
-                          <th className="py-2 font-medium">Código</th>
-                          <th className="py-2 font-medium">Descripción</th>
-                          <th className="py-2 font-medium text-right">Valor Mensual</th>
+                        <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
+                          {pdfSettings.showItemCodes && <th className="py-2 px-2 font-medium">Código</th>}
+                          <th className="py-2 px-2 font-medium">Descripción</th>
+                          <th className="py-2 px-2 font-medium text-right">Valor Mensual</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-gray-100">
+                      <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
                         {Object.values(selectedServices)
                           .filter(({item}) => item.recurring)
-                          .map(({item, quantity}) => (
-                          <tr key={item.id}>
-                            <td className="py-3 font-mono text-xs text-gray-500">{item.id}</td>
-                            <td className="py-3 font-medium text-gray-900">{item.name}</td>
-                            <td className="py-3 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
+                          .map(({item, quantity}, idx) => (
+                          <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                            {pdfSettings.showItemCodes && <td className="py-3 px-2 font-mono text-xs text-gray-500">{item.id}</td>}
+                            <td className="py-3 px-2 font-medium text-gray-900">{item.name}</td>
+                            <td className="py-3 px-2 text-right text-gray-900">{formatCurrency(item.basePrice * quantity)}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1081,12 +1213,12 @@ export default function App() {
               <div className="mt-12 pt-8 border-t border-gray-100 text-center text-sm text-gray-500">
                 {quoteCustom.isEditing ? (
                   <textarea
-                    value={quoteCustom.footer}
+                    value={quoteCustom.footer || pdfSettings.defaultFooter}
                     onChange={e => setQuoteCustom({...quoteCustom, footer: e.target.value})}
                     className="w-full border border-gray-300 rounded p-3 text-gray-500 text-center bg-blue-50 focus:bg-white min-h-[80px]"
                   />
                 ) : (
-                  <p className="whitespace-pre-wrap">{quoteCustom.footer}</p>
+                  <p className="whitespace-pre-wrap">{quoteCustom.footer || pdfSettings.defaultFooter}</p>
                 )}
               </div>
             </div>
