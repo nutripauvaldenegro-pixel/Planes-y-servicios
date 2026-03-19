@@ -31,11 +31,15 @@ export type PdfSettings = {
   companyTagline: string;
   defaultFooter: string;
   primaryColor: string;
+  accentColor: string;
   fontFamily: string;
   logoUrl: string;
   headerLayout: 'left' | 'center' | 'split';
   tableStyle: 'minimal' | 'bordered' | 'striped';
+  themeStyle: 'standard' | 'professional' | 'creative';
+  sectionHeaders: 'plain' | 'underlined' | 'filled';
   showItemCodes: boolean;
+  showCoverPage: boolean;
 };
 
 export default function App() {
@@ -79,11 +83,15 @@ export default function App() {
       companyTagline: 'Propuesta de Servicios',
       defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.',
       primaryColor: '#2563eb', // Tailwind blue-600
+      accentColor: '#1d4ed8', // Tailwind blue-700
       fontFamily: 'font-sans',
       logoUrl: '',
       headerLayout: 'split',
       tableStyle: 'minimal',
-      showItemCodes: true
+      themeStyle: 'professional',
+      sectionHeaders: 'underlined',
+      showItemCodes: true,
+      showCoverPage: true
     };
 
     if (saved) {
@@ -794,7 +802,7 @@ export default function App() {
                             </div>
 
                             {/* Aesthetics */}
-                            <div className="md:col-span-4">
+                            <div className="md:col-span-3">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Color Principal</label>
                                 <div className="flex items-center space-x-3 border border-gray-300 rounded-md p-1 pl-3 bg-white">
                                     <span className="text-gray-600 font-mono text-sm flex-1">{pdfSettings.primaryColor}</span>
@@ -807,7 +815,20 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <div className="md:col-span-4">
+                            <div className="md:col-span-3">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Color Secundario (Acentos)</label>
+                                <div className="flex items-center space-x-3 border border-gray-300 rounded-md p-1 pl-3 bg-white">
+                                    <span className="text-gray-600 font-mono text-sm flex-1">{pdfSettings.accentColor}</span>
+                                    <input
+                                        type="color"
+                                        value={pdfSettings.accentColor}
+                                        onChange={(e) => setPdfSettings({...pdfSettings, accentColor: e.target.value})}
+                                        className="h-8 w-12 cursor-pointer border-0 p-0 rounded"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="md:col-span-3">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Tipografía</label>
                                 <select
                                     value={pdfSettings.fontFamily}
@@ -817,6 +838,19 @@ export default function App() {
                                     <option value="font-sans">Sans (Moderna)</option>
                                     <option value="font-serif">Serif (Clásica/Formal)</option>
                                     <option value="font-mono">Mono (Técnica)</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-3">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Tema / Estilo General</label>
+                                <select
+                                    value={pdfSettings.themeStyle}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, themeStyle: e.target.value as PdfSettings['themeStyle']})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 bg-white"
+                                >
+                                    <option value="professional">Profesional (Limpio)</option>
+                                    <option value="standard">Estándar (Básico)</option>
+                                    <option value="creative">Creativo (Colorido)</option>
                                 </select>
                             </div>
 
@@ -834,6 +868,19 @@ export default function App() {
                             </div>
 
                             <div className="md:col-span-4">
+                                <label className="block text-sm font-semibold text-gray-700 mb-1">Estilo de Encabezados de Sección</label>
+                                <select
+                                    value={pdfSettings.sectionHeaders}
+                                    onChange={(e) => setPdfSettings({...pdfSettings, sectionHeaders: e.target.value as PdfSettings['sectionHeaders']})}
+                                    className="w-full border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-2 bg-white"
+                                >
+                                    <option value="underlined">Subrayado de color</option>
+                                    <option value="filled">Fondo relleno de color</option>
+                                    <option value="plain">Texto simple destacado</option>
+                                </select>
+                            </div>
+
+                            <div className="md:col-span-4">
                                 <label className="block text-sm font-semibold text-gray-700 mb-1">Estilo de Tablas</label>
                                 <select
                                     value={pdfSettings.tableStyle}
@@ -846,7 +893,16 @@ export default function App() {
                                 </select>
                             </div>
 
-                            <div className="md:col-span-8 flex items-center pt-6">
+                            <div className="md:col-span-12 flex flex-wrap gap-6 pt-4">
+                                <label className="flex items-center cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        checked={pdfSettings.showCoverPage}
+                                        onChange={(e) => setPdfSettings({...pdfSettings, showCoverPage: e.target.checked})}
+                                        className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <span className="ml-3 block text-sm font-medium text-gray-700">Incluir Portada (Página de Inicio) en PDF</span>
+                                </label>
                                 <label className="flex items-center cursor-pointer">
                                     <input
                                         type="checkbox"
@@ -854,7 +910,7 @@ export default function App() {
                                         onChange={(e) => setPdfSettings({...pdfSettings, showItemCodes: e.target.checked})}
                                         className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                                     />
-                                    <span className="ml-3 block text-sm font-medium text-gray-700">Mostrar Códigos de Ítems (ej. C-01, P-03) en el PDF</span>
+                                    <span className="ml-3 block text-sm font-medium text-gray-700">Mostrar Códigos de Ítems (ej. C-01)</span>
                                 </label>
                             </div>
 
@@ -1008,10 +1064,26 @@ export default function App() {
 
             {/* Document to print */}
             <div
-              className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}
+              className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${pdfSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${quoteCustom.isEditing ? 'ring-4 ring-blue-100' : ''}`}
             >
+              {/* Cover Page */}
+              {pdfSettings.showCoverPage && (
+                <div className="hidden print:flex flex-col justify-center items-center min-h-[100vh] print:break-after-page text-center px-20">
+                  {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className="max-h-32 mb-12" />}
+                  <h1 className="text-6xl font-black text-gray-900 tracking-tight mb-4">{quoteCustom.title}</h1>
+                  <h2 className="text-2xl font-medium mb-16" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyName} - {pdfSettings.companyTagline}</h2>
+
+                  <div className="mt-20 border-t-2 pt-12 w-full max-w-md" style={{ borderColor: pdfSettings.accentColor }}>
+                    <p className="text-sm font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</p>
+                    <p className="text-2xl font-bold text-gray-900">{clientInfo.name || 'Cliente'}</p>
+                    {clientInfo.company && <p className="text-xl text-gray-600 mt-1">{clientInfo.company}</p>}
+                    <p className="text-gray-500 mt-8">Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                  </div>
+                </div>
+              )}
+
               <div
-                className={`border-b-2 pb-6 mb-8 ${pdfSettings.headerLayout === 'center' ? 'flex flex-col items-center text-center' : pdfSettings.headerLayout === 'left' ? 'flex flex-col items-start' : 'flex justify-between items-end'}`}
+                className={`border-b-2 pb-6 mb-8 ${pdfSettings.headerLayout === 'center' ? 'flex flex-col items-center text-center' : pdfSettings.headerLayout === 'left' ? 'flex flex-col items-start' : 'flex justify-between items-end'} ${pdfSettings.showCoverPage ? 'print:pt-10' : ''}`}
                 style={{ borderColor: pdfSettings.primaryColor }}
               >
                 <div className={`${pdfSettings.headerLayout === 'center' ? 'mb-4' : pdfSettings.headerLayout === 'left' ? 'mb-4 w-full flex justify-between items-start' : 'flex items-center'}`}>
@@ -1061,7 +1133,7 @@ export default function App() {
               </div>
 
               {(clientInfo.name || clientInfo.company || quoteCustom.isEditing) && (
-                <div className="mb-8">
+                <div className={`mb-8 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
                   <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</h3>
                   {quoteCustom.isEditing ? (
                     <div className="space-y-2 max-w-sm">
@@ -1098,15 +1170,20 @@ export default function App() {
                     type="text"
                     value={quoteCustom.title}
                     onChange={e => setQuoteCustom({...quoteCustom, title: e.target.value})}
-                    className="w-full text-xl font-bold text-gray-800 mb-4 border-b border-gray-300 pb-2 bg-blue-50 focus:bg-white px-2 rounded-t"
+                    className={`w-full text-xl font-bold text-gray-800 mb-4 pb-2 bg-blue-50 focus:bg-white px-2 rounded ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}
                   />
                 ) : (
-                  <h2 className="text-xl font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2">{quoteCustom.title}</h2>
+                  <h2 className={`text-xl font-bold text-gray-800 mb-4 pb-2 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>{quoteCustom.title}</h2>
                 )}
 
                 {/* One Time Items */}
                 <div className="mb-6">
-                  <h3 className="font-semibold text-gray-700 mb-3 bg-gray-50 p-2 rounded">1. Servicios de Setup (Pago Único)</h3>
+                  <h3
+                    className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`}
+                    style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}
+                  >
+                    1. Servicios de Setup (Pago Único)
+                  </h3>
                   <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                     <thead>
                       <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
@@ -1133,8 +1210,13 @@ export default function App() {
 
                 {/* Recurring Items */}
                 {Object.values(selectedServices).some(({item}) => item.recurring) && (
-                  <div>
-                    <h3 className="font-semibold text-gray-700 mb-3 bg-gray-50 p-2 rounded">2. Servicios Retainer (Mensual)</h3>
+                  <div className="mt-8">
+                    <h3
+                      className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`}
+                      style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}
+                    >
+                      2. Servicios Retainer (Mensual)
+                    </h3>
                     <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                       <thead>
                         <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
@@ -1160,51 +1242,59 @@ export default function App() {
               </div>
 
               {/* Total Summary */}
-              <div className="bg-gray-50 p-6 rounded-xl border border-gray-200">
-                <h3 className="font-bold text-gray-800 mb-4 uppercase text-sm tracking-wider">Resumen de Inversión</h3>
+              <div
+                className="mt-12 p-8 rounded-xl print:break-inside-avoid"
+                style={{ backgroundColor: pdfSettings.themeStyle === 'creative' ? pdfSettings.accentColor + '10' : '#f9fafb', border: `1px solid ${pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '#e5e7eb'}` }}
+              >
+                <h3
+                  className="font-bold text-gray-800 mb-6 uppercase tracking-wider"
+                  style={{ color: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '' }}
+                >
+                  Resumen de Inversión
+                </h3>
 
-                <div className="space-y-2 mb-4">
-                  <div className="flex justify-between text-sm text-gray-600">
-                    <span>Subtotal Setup</span>
+                <div className="space-y-3 mb-6 pb-6 border-b" style={{ borderColor: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor + '30' : '#e5e7eb' }}>
+                  <div className="flex justify-between text-sm font-medium text-gray-600">
+                    <span>Subtotal Setup de Proyecto</span>
                     <span>{formatCurrency(calculatePrices.oneTimeBase)}</span>
                   </div>
 
                   {modifiers.urgency && (
-                    <div className="flex justify-between text-sm text-amber-600">
-                      <span>Recargo Urgencia (A-04)</span>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Recargo por Urgencia</span>
                       <span>{formatCurrency(calculatePrices.urgencyModifier)}</span>
                     </div>
                   )}
                   {modifiers.financing && (
-                    <div className="flex justify-between text-sm text-blue-600">
-                      <span>Recargo Financiamiento (A-06)</span>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Recargo por Financiamiento</span>
                       <span>{formatCurrency(calculatePrices.financingModifier)}</span>
                     </div>
                   )}
                   {modifiers.successFee && (
-                    <div className="flex justify-between text-sm text-green-600">
-                      <span>Tasa de Éxito Startups (A-05)</span>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Tasa de Riesgo/Éxito (Startups)</span>
                       <span>{formatCurrency(calculatePrices.successFeeModifier)}</span>
                     </div>
                   )}
                   {modifiers.thirdPartyMarkup && (
-                    <div className="flex justify-between text-sm text-indigo-600">
-                      <span>Comisión Terceros (A-07)</span>
+                    <div className="flex justify-between text-sm text-gray-500">
+                      <span>Markup de Terceros</span>
                       <span>{formatCurrency(calculatePrices.thirdPartyModifier)}</span>
                     </div>
                   )}
                 </div>
 
-                <div className="pt-4 border-t border-gray-200 flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                  <div className="bg-white p-4 rounded-lg border border-gray-200 flex-1 w-full shadow-sm">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                  <div className="flex-1 w-full">
                     <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Inicial Única</p>
-                    <p className="text-3xl font-black text-gray-900">{formatCurrency(calculatePrices.oneTimeTotal)}</p>
+                    <p className="text-4xl font-black text-gray-900">{formatCurrency(calculatePrices.oneTimeTotal)}</p>
                   </div>
 
                   {calculatePrices.recurringTotal > 0 && (
-                    <div className="bg-purple-50 p-4 rounded-lg border border-purple-100 flex-1 w-full shadow-sm">
-                      <p className="text-xs font-bold text-purple-600 uppercase mb-1">Inversión Mensual (Retainer)</p>
-                      <p className="text-3xl font-black text-purple-900">{formatCurrency(calculatePrices.recurringTotal)}</p>
+                    <div className="flex-1 w-full md:text-right">
+                      <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Mensual (Retainer)</p>
+                      <p className="text-3xl font-black" style={{ color: pdfSettings.primaryColor }}>{formatCurrency(calculatePrices.recurringTotal)}<span className="text-lg font-medium text-gray-500">/mes</span></p>
                     </div>
                   )}
                 </div>
