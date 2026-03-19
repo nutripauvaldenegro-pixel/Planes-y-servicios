@@ -1469,6 +1469,45 @@ export default function App() {
                                             </label>
                                         </div>
 
+                                        {/* Hidden Blocks Restorer */}
+                                        {(() => {
+                                            const masterBlocks = [
+                                                { id: 'cover', name: 'Portada' },
+                                                { id: 'header', name: 'Encabezado' },
+                                                { id: 'client', name: 'Datos del Cliente' },
+                                                { id: 'intro', name: 'Introducción' },
+                                                { id: 'title', name: 'Título Principal' },
+                                                { id: 'setup', name: 'Tabla: Setup Único' },
+                                                { id: 'retainer', name: 'Tabla: Retainer Mensual' },
+                                                { id: 'totals', name: 'Resumen de Inversión' },
+                                                { id: 'footer', name: 'Pie de Página' }
+                                            ];
+                                            const hiddenBlocks = masterBlocks.filter(b => !pdfSettings.layoutBlocks.includes(b.id));
+
+                                            if (hiddenBlocks.length === 0) return null;
+
+                                            return (
+                                                <div className="pt-3 border-t border-gray-100">
+                                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center">
+                                                        <EyeOff className="w-3 h-3 mr-1" /> Componentes Ocultos
+                                                    </label>
+                                                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
+                                                        {hiddenBlocks.map(block => (
+                                                            <div key={block.id} className="flex justify-between items-center bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
+                                                                <span className="text-[11px] font-medium text-gray-600">{block.name}</span>
+                                                                <button
+                                                                    onClick={() => toggleBlockVisibility(block.id)}
+                                                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 px-1.5 py-0.5 rounded transition-colors"
+                                                                >
+                                                                    Mostrar
+                                                                </button>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })()}
+
                                         <button
                                             onClick={handleSavePdfSettings}
                                             className="w-full flex justify-center items-center text-sm font-bold text-white bg-green-600 hover:bg-green-700 py-2 rounded-lg transition-colors shadow-sm mt-4"
