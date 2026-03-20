@@ -1,10 +1,73 @@
-Programa para calcular el costo de los servicios de iStudio y crear planes de ventas
-Configure, Price, Quote (Configurar, Valorizar, Cotizar).
+# React + TypeScript + Vite
 
-En español, suele llamarse comercialmente Cotizador Dinámico, Generador de Presupuestos o Software de Cotización.
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
-- **C (Configure / Configurar)**: Es la etapa donde tú o tu equipo seleccionan los parámetros atómicos que ya definimos (ej. sumar el punto D-08, quitar el P-03) para armar el "Pack" exacto a la medida del cliente, sin que se te escape nada.
+Currently, two official plugins are available:
 
-- **P (Price / Valorizar)**: Es el motor matemático interno. El programa lee la selección, identifica si son cobros únicos (Modelo Híbrido) o recurrentes (Suscripción/Retainer), aplica los recargos (como la urgencia) y calcula el precio total automáticamente.
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-- **Q (Quote / Cotizar)**: Es la salida final. El programa toma toda esa data y genera el documento formal (PDF o enlace web) con la propuesta comercial, lista para ser enviada y aprobada por el cliente.
+## React Compiler
+
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default defineConfig([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
