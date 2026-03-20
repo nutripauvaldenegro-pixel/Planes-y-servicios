@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category, Pack } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff, AlignLeft, AlignCenter, AlignJustify, Table, Type } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff, AlignLeft, AlignCenter, AlignJustify, Table, Type, Palette, LayoutTemplate, Type as TypeIcon, Image as ImageIcon } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -104,7 +104,7 @@ export default function App() {
       defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.',
       primaryColor: '#2563eb', // Tailwind blue-600
       accentColor: '#1d4ed8', // Tailwind blue-700
-      fontFamily: 'font-sans',
+      fontFamily: 'font-inter',
       logoUrl: '',
       headerLayout: 'split',
       tableStyle: 'minimal',
@@ -142,6 +142,7 @@ export default function App() {
   });
 
   const [adminPdfEditing, setAdminPdfEditing] = useState(false);
+  const [activePaletteTab, setActivePaletteTab] = useState<'brand' | 'typography' | 'layout' | 'components'>('brand');
 
   const evaluateItemPrice = (item: ServiceItem, customVars: Record<string, number>): number => {
     if (!item.priceFormula || item.priceFormula.trim() === '' || item.priceFormula === 'basePrice') {
@@ -1387,155 +1388,370 @@ export default function App() {
                                     {renderPdfDocument('admin')}
                                 </div>
 
-                                {/* Floating Global Palette */}
-                                <div className="fixed bottom-8 right-8 bg-white rounded-xl shadow-2xl border border-gray-200 p-6 w-80 z-50">
-                                    <h4 className="font-bold text-gray-800 mb-4 border-b pb-2 flex items-center">
-                                        <Settings className="w-4 h-4 mr-2 text-indigo-500" />
-                                        Paleta de Estilos Global
-                                    </h4>
+                                {/* Floating Global Palette Sidebar */}
+                                <div className="fixed top-24 right-4 bg-white rounded-xl shadow-2xl border border-gray-200 w-80 z-50 flex flex-col max-h-[calc(100vh-8rem)] overflow-hidden">
+                                    <div className="p-5 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+                                        <h4 className="font-extrabold text-gray-900 flex items-center text-sm tracking-tight">
+                                            <Palette className="w-4 h-4 mr-2 text-indigo-600" />
+                                            Estudio de Diseño PDF
+                                        </h4>
+                                        <p className="text-[10px] text-gray-500 mt-1 uppercase tracking-widest font-semibold">Configuración Global</p>
+                                    </div>
 
-                                    <div className="space-y-4">
-                                        <div>
-                                            <label className="block text-xs font-semibold text-gray-600 mb-1">Adjuntar Logo</label>
-                                            <div className="flex items-center space-x-2">
-                                                <label className="flex-1 cursor-pointer bg-white border border-gray-300 rounded shadow-sm px-2 py-1.5 text-xs text-center text-gray-700 hover:bg-gray-50 focus-within:ring-1 focus-within:ring-blue-500 overflow-hidden text-ellipsis whitespace-nowrap">
-                                                    {pdfSettings.logoUrl ? 'Cambiar Imagen...' : 'Subir Imagen...'}
-                                                    <input
-                                                        type="file"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                        onChange={(e) => {
-                                                            const file = e.target.files?.[0];
-                                                            if (file) {
-                                                                const reader = new FileReader();
-                                                                reader.onloadend = () => {
-                                                                    setPdfSettings({...pdfSettings, logoUrl: reader.result as string});
-                                                                };
-                                                                reader.readAsDataURL(file);
-                                                            }
-                                                        }}
-                                                    />
-                                                </label>
-                                                {pdfSettings.logoUrl && (
-                                                    <button
-                                                        onClick={() => setPdfSettings({...pdfSettings, logoUrl: ''})}
-                                                        className="p-1.5 text-red-500 hover:bg-red-50 rounded border border-transparent hover:border-red-200 transition-colors"
-                                                        title="Eliminar logo"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
+                                    {/* Tabs */}
+                                    <div className="flex border-b border-gray-200 bg-white flex-shrink-0">
+                                        <button onClick={() => setActivePaletteTab('brand')} className={`flex-1 py-3 px-2 flex flex-col items-center justify-center transition-colors border-b-2 ${activePaletteTab === 'brand' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                                            <ImageIcon className="w-4 h-4 mb-1" />
+                                            <span className="text-[10px] font-bold">Marca</span>
+                                        </button>
+                                        <button onClick={() => setActivePaletteTab('typography')} className={`flex-1 py-3 px-2 flex flex-col items-center justify-center transition-colors border-b-2 ${activePaletteTab === 'typography' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                                            <TypeIcon className="w-4 h-4 mb-1" />
+                                            <span className="text-[10px] font-bold">Texto</span>
+                                        </button>
+                                        <button onClick={() => setActivePaletteTab('layout')} className={`flex-1 py-3 px-2 flex flex-col items-center justify-center transition-colors border-b-2 ${activePaletteTab === 'layout' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                                            <LayoutTemplate className="w-4 h-4 mb-1" />
+                                            <span className="text-[10px] font-bold">Diseño</span>
+                                        </button>
+                                        <button onClick={() => setActivePaletteTab('components')} className={`flex-1 py-3 px-2 flex flex-col items-center justify-center transition-colors border-b-2 ${activePaletteTab === 'components' ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+                                            <Settings className="w-4 h-4 mb-1" />
+                                            <span className="text-[10px] font-bold">Bloques</span>
+                                        </button>
+                                    </div>
 
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">C. Primario</label>
-                                                <div className="flex items-center space-x-2 border border-gray-300 rounded p-1">
-                                                    <input
-                                                        type="color"
-                                                        value={pdfSettings.primaryColor}
-                                                        onChange={(e) => setPdfSettings({...pdfSettings, primaryColor: e.target.value})}
-                                                        className="h-6 w-full cursor-pointer border-0 p-0 rounded"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Acento</label>
-                                                <div className="flex items-center space-x-2 border border-gray-300 rounded p-1">
-                                                    <input
-                                                        type="color"
-                                                        value={pdfSettings.accentColor}
-                                                        onChange={(e) => setPdfSettings({...pdfSettings, accentColor: e.target.value})}
-                                                        className="h-6 w-full cursor-pointer border-0 p-0 rounded"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tipografía</label>
-                                            <select
-                                                value={pdfSettings.fontFamily}
-                                                onChange={(e) => setPdfSettings({...pdfSettings, fontFamily: e.target.value})}
-                                                className="w-full text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-1.5 bg-white"
-                                            >
-                                                <option value="font-sans">Sans (Moderna)</option>
-                                                <option value="font-serif">Serif (Clásica/Formal)</option>
-                                                <option value="font-mono">Mono (Técnica)</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1">Tema Estructural</label>
-                                            <select
-                                                value={pdfSettings.themeStyle}
-                                                onChange={(e) => setPdfSettings({...pdfSettings, themeStyle: e.target.value as PdfSettings['themeStyle']})}
-                                                className="w-full text-sm border-gray-300 rounded shadow-sm focus:ring-blue-500 focus:border-blue-500 border p-1.5 bg-white"
-                                            >
-                                                <option value="professional">Profesional (Limpio)</option>
-                                                <option value="standard">Estándar (Básico)</option>
-                                                <option value="creative">Creativo (Colorido)</option>
-                                            </select>
-                                        </div>
-
-                                        <div className="pt-2 border-t border-gray-100">
-                                            <label className="flex items-center cursor-pointer">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={pdfSettings.showCoverPage}
-                                                    onChange={(e) => setPdfSettings({...pdfSettings, showCoverPage: e.target.checked})}
-                                                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                                                />
-                                                <span className="ml-2 block text-xs font-medium text-gray-700">Incluir Portada de Inicio</span>
-                                            </label>
-                                        </div>
-
-                                        {/* Hidden Blocks Restorer */}
-                                        {(() => {
-                                            const masterBlocks = [
-                                                { id: 'cover', name: 'Portada' },
-                                                { id: 'header', name: 'Encabezado' },
-                                                { id: 'client', name: 'Datos del Cliente' },
-                                                { id: 'intro', name: 'Introducción' },
-                                                { id: 'title', name: 'Título Principal' },
-                                                { id: 'setup', name: 'Tabla: Setup Único' },
-                                                { id: 'retainer', name: 'Tabla: Retainer Mensual' },
-                                                { id: 'totals', name: 'Resumen de Inversión' },
-                                                { id: 'footer', name: 'Pie de Página' }
-                                            ];
-                                            const hiddenBlocks = masterBlocks.filter(b => !pdfSettings.layoutBlocks.includes(b.id));
-
-                                            if (hiddenBlocks.length === 0) return null;
-
-                                            return (
-                                                <div className="pt-3 border-t border-gray-100">
-                                                    <label className="block text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center">
-                                                        <EyeOff className="w-3 h-3 mr-1" /> Componentes Ocultos
-                                                    </label>
-                                                    <div className="space-y-1.5 max-h-32 overflow-y-auto pr-1">
-                                                        {hiddenBlocks.map(block => (
-                                                            <div key={block.id} className="flex justify-between items-center bg-gray-50 rounded px-2 py-1.5 border border-gray-200">
-                                                                <span className="text-[11px] font-medium text-gray-600">{block.name}</span>
-                                                                <button
-                                                                    onClick={() => toggleBlockVisibility(block.id)}
-                                                                    className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-100 hover:bg-indigo-200 px-1.5 py-0.5 rounded transition-colors"
-                                                                >
-                                                                    Mostrar
-                                                                </button>
+                                    <div className="p-5 overflow-y-auto flex-1 bg-white" style={{ minHeight: '320px' }}>
+                                        {/* TAB: BRAND & COLORS */}
+                                        {activePaletteTab === 'brand' && (
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Logotipo Corporativo</label>
+                                                    <div className="flex flex-col space-y-2">
+                                                        {pdfSettings.logoUrl && (
+                                                            <div className="w-full h-24 bg-gray-50 border border-gray-200 rounded-lg flex items-center justify-center relative group overflow-hidden">
+                                                                <img src={pdfSettings.logoUrl} alt="Logo" className="max-h-16 max-w-[80%] object-contain" />
+                                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                                    <button onClick={() => setPdfSettings({...pdfSettings, logoUrl: ''})} className="bg-white text-red-600 p-2 rounded-full shadow-lg hover:bg-red-50 transition-colors">
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
                                                             </div>
-                                                        ))}
+                                                        )}
+                                                        <label className={`w-full cursor-pointer flex items-center justify-center bg-white border-2 border-dashed ${pdfSettings.logoUrl ? 'border-gray-300 py-2' : 'border-indigo-300 bg-indigo-50/50 py-8'} rounded-lg hover:bg-gray-50 hover:border-indigo-400 transition-colors`}>
+                                                            <div className="text-center">
+                                                                {!pdfSettings.logoUrl && <ImageIcon className="w-6 h-6 text-indigo-400 mx-auto mb-2" />}
+                                                                <span className="text-xs font-semibold text-indigo-600">{pdfSettings.logoUrl ? 'Reemplazar imagen...' : 'Subir logotipo de la empresa'}</span>
+                                                                {!pdfSettings.logoUrl && <p className="text-[10px] text-gray-500 mt-1">PNG, JPG o SVG (Max 2MB)</p>}
+                                                            </div>
+                                                            <input
+                                                                type="file"
+                                                                accept="image/*"
+                                                                className="hidden"
+                                                                onChange={(e) => {
+                                                                    const file = e.target.files?.[0];
+                                                                    if (file) {
+                                                                        const reader = new FileReader();
+                                                                        reader.onloadend = () => {
+                                                                            setPdfSettings({...pdfSettings, logoUrl: reader.result as string});
+                                                                        };
+                                                                        reader.readAsDataURL(file);
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </label>
                                                     </div>
                                                 </div>
-                                            );
-                                        })()}
 
+                                                <div className="border-t border-gray-100 pt-4">
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-3">Paleta de Colores</label>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="space-y-1.5">
+                                                            <label className="block text-xs font-semibold text-gray-600">Primario</label>
+                                                            <div className="flex items-center space-x-2 border border-gray-200 bg-white rounded-lg p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-shadow">
+                                                                <input
+                                                                    type="color"
+                                                                    value={pdfSettings.primaryColor}
+                                                                    onChange={(e) => setPdfSettings({...pdfSettings, primaryColor: e.target.value})}
+                                                                    className="w-8 h-8 p-0 border-0 rounded cursor-pointer shrink-0"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={pdfSettings.primaryColor.toUpperCase()}
+                                                                    onChange={(e) => setPdfSettings({...pdfSettings, primaryColor: e.target.value})}
+                                                                    className="w-full text-xs font-mono font-medium text-gray-700 border-none bg-transparent p-0 focus:ring-0"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <label className="block text-xs font-semibold text-gray-600">Acento</label>
+                                                            <div className="flex items-center space-x-2 border border-gray-200 bg-white rounded-lg p-1.5 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500 transition-shadow">
+                                                                <input
+                                                                    type="color"
+                                                                    value={pdfSettings.accentColor}
+                                                                    onChange={(e) => setPdfSettings({...pdfSettings, accentColor: e.target.value})}
+                                                                    className="w-8 h-8 p-0 border-0 rounded cursor-pointer shrink-0"
+                                                                />
+                                                                <input
+                                                                    type="text"
+                                                                    value={pdfSettings.accentColor.toUpperCase()}
+                                                                    onChange={(e) => setPdfSettings({...pdfSettings, accentColor: e.target.value})}
+                                                                    className="w-full text-xs font-mono font-medium text-gray-700 border-none bg-transparent p-0 focus:ring-0"
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* TAB: TYPOGRAPHY */}
+                                        {activePaletteTab === 'typography' && (
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Familia Tipográfica</label>
+                                                    <div className="space-y-2">
+                                                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${pdfSettings.fontFamily === 'font-inter' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input type="radio" name="font" checked={pdfSettings.fontFamily === 'font-inter'} onChange={() => setPdfSettings({...pdfSettings, fontFamily: 'font-inter'})} className="sr-only" />
+                                                            <span className="text-xl font-bold font-inter w-8 text-center text-gray-800">Aa</span>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-bold font-inter text-gray-900 leading-none">Inter</p>
+                                                                <p className="text-[10px] text-gray-500 mt-1">Limpia, moderna, digital</p>
+                                                            </div>
+                                                        </label>
+
+                                                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${pdfSettings.fontFamily === 'font-montserrat' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input type="radio" name="font" checked={pdfSettings.fontFamily === 'font-montserrat'} onChange={() => setPdfSettings({...pdfSettings, fontFamily: 'font-montserrat'})} className="sr-only" />
+                                                            <span className="text-xl font-bold font-montserrat w-8 text-center text-gray-800">Aa</span>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-bold font-montserrat text-gray-900 leading-none">Montserrat</p>
+                                                                <p className="text-[10px] text-gray-500 mt-1">Geométrica, corporativa</p>
+                                                            </div>
+                                                        </label>
+
+                                                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${pdfSettings.fontFamily === 'font-nunito' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input type="radio" name="font" checked={pdfSettings.fontFamily === 'font-nunito'} onChange={() => setPdfSettings({...pdfSettings, fontFamily: 'font-nunito'})} className="sr-only" />
+                                                            <span className="text-xl font-bold font-nunito w-8 text-center text-gray-800">Aa</span>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-bold font-nunito text-gray-900 leading-none">Nunito</p>
+                                                                <p className="text-[10px] text-gray-500 mt-1">Redondeada, amigable</p>
+                                                            </div>
+                                                        </label>
+
+                                                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${pdfSettings.fontFamily === 'font-playfair' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input type="radio" name="font" checked={pdfSettings.fontFamily === 'font-playfair'} onChange={() => setPdfSettings({...pdfSettings, fontFamily: 'font-playfair'})} className="sr-only" />
+                                                            <span className="text-xl font-bold font-playfair w-8 text-center text-gray-800">Aa</span>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-bold font-playfair text-gray-900 leading-none">Playfair Display</p>
+                                                                <p className="text-[10px] text-gray-500 mt-1">Elegante, premium, serif</p>
+                                                            </div>
+                                                        </label>
+
+                                                        <label className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${pdfSettings.fontFamily === 'font-lora' ? 'border-indigo-600 bg-indigo-50/50 ring-1 ring-indigo-600' : 'border-gray-200 hover:border-gray-300'}`}>
+                                                            <input type="radio" name="font" checked={pdfSettings.fontFamily === 'font-lora'} onChange={() => setPdfSettings({...pdfSettings, fontFamily: 'font-lora'})} className="sr-only" />
+                                                            <span className="text-xl font-bold font-lora w-8 text-center text-gray-800">Aa</span>
+                                                            <div className="ml-3">
+                                                                <p className="text-sm font-bold font-lora text-gray-900 leading-none">Lora</p>
+                                                                <p className="text-[10px] text-gray-500 mt-1">Clásica, editorial, formal</p>
+                                                            </div>
+                                                        </label>
+                                                    </div>
+                                                </div>
+
+                                                <div className="border-t border-gray-100 pt-4">
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Estilo de Encabezados</label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, sectionHeaders: 'plain'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.sectionHeaders === 'plain' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-1 bg-gray-300 mb-1 rounded-sm"></div>
+                                                            Sencillo
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, sectionHeaders: 'underlined'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.sectionHeaders === 'underlined' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-1 bg-indigo-500 mb-1 rounded-sm"></div>
+                                                            Subrayado
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, sectionHeaders: 'filled'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.sectionHeaders === 'filled' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-3 bg-indigo-100 mb-1 rounded-sm border-l-2 border-indigo-500"></div>
+                                                            Relleno
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* TAB: LAYOUT */}
+                                        {activePaletteTab === 'layout' && (
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                                                <div>
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Tema Estructural</label>
+                                                    <select
+                                                        value={pdfSettings.themeStyle}
+                                                        onChange={(e) => setPdfSettings({...pdfSettings, themeStyle: e.target.value as PdfSettings['themeStyle']})}
+                                                        className="w-full text-sm font-medium border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 border p-2 bg-white"
+                                                    >
+                                                        <option value="professional">Profesional (Corporativo y Limpio)</option>
+                                                        <option value="standard">Estándar (Clásico y Compacto)</option>
+                                                        <option value="creative">Creativo (Moderno y Dinámico)</option>
+                                                    </select>
+                                                </div>
+
+                                                <div className="border-t border-gray-100 pt-4">
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Alineación del Encabezado</label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, headerLayout: 'left'})}
+                                                            className={`p-2 border rounded-lg flex flex-col items-center justify-center transition-colors ${pdfSettings.headerLayout === 'left' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                            title="Izquierda"
+                                                        >
+                                                            <AlignLeft className="w-5 h-5 mb-1" />
+                                                            <span className="text-[10px] font-bold">Izquierda</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, headerLayout: 'center'})}
+                                                            className={`p-2 border rounded-lg flex flex-col items-center justify-center transition-colors ${pdfSettings.headerLayout === 'center' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                            title="Centro"
+                                                        >
+                                                            <AlignCenter className="w-5 h-5 mb-1" />
+                                                            <span className="text-[10px] font-bold">Centro</span>
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, headerLayout: 'split'})}
+                                                            className={`p-2 border rounded-lg flex flex-col items-center justify-center transition-colors ${pdfSettings.headerLayout === 'split' ? 'border-indigo-600 bg-indigo-50 text-indigo-700 ring-1 ring-indigo-600' : 'border-gray-200 text-gray-500 hover:bg-gray-50'}`}
+                                                            title="Dividido"
+                                                        >
+                                                            <AlignJustify className="w-5 h-5 mb-1" />
+                                                            <span className="text-[10px] font-bold">Dividido</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+
+                                                <div className="border-t border-gray-100 pt-4">
+                                                    <label className="block text-[11px] font-bold text-gray-700 uppercase tracking-wider mb-2">Estilo de Tablas</label>
+                                                    <div className="grid grid-cols-3 gap-2">
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, tableStyle: 'minimal'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.tableStyle === 'minimal' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-px bg-gray-400 mb-1"></div>
+                                                            Minimalista
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, tableStyle: 'striped'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.tableStyle === 'striped' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-2 bg-gray-100 mb-[2px]"></div>
+                                                            <div className="w-8 h-2 bg-white mb-1"></div>
+                                                            Cebra
+                                                        </button>
+                                                        <button
+                                                            onClick={() => setPdfSettings({...pdfSettings, tableStyle: 'bordered'})}
+                                                            className={`py-2 px-1 border rounded text-xs font-semibold flex flex-col items-center justify-center transition-colors ${pdfSettings.tableStyle === 'bordered' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                                                        >
+                                                            <div className="w-8 h-4 border border-gray-300 mb-1 rounded-sm grid grid-cols-2 gap-0"><div className="border-r border-gray-300"></div></div>
+                                                            Bordes
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* TAB: COMPONENTS & BLOCKS */}
+                                        {activePaletteTab === 'components' && (
+                                            <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-200">
+                                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                                    <label className="flex items-start cursor-pointer">
+                                                        <div className="flex items-center h-5">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={pdfSettings.showCoverPage}
+                                                                onChange={(e) => setPdfSettings({...pdfSettings, showCoverPage: e.target.checked})}
+                                                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                            />
+                                                        </div>
+                                                        <div className="ml-3">
+                                                            <span className="block text-sm font-bold text-gray-800">Incluir Portada</span>
+                                                            <span className="block text-xs text-gray-500 mt-0.5">Agrega una hoja de presentación al inicio del documento.</span>
+                                                        </div>
+                                                    </label>
+                                                </div>
+
+                                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                                                    <label className="flex items-start cursor-pointer">
+                                                        <div className="flex items-center h-5">
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={pdfSettings.showItemCodes}
+                                                                onChange={(e) => setPdfSettings({...pdfSettings, showItemCodes: e.target.checked})}
+                                                                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                                            />
+                                                        </div>
+                                                        <div className="ml-3">
+                                                            <span className="block text-sm font-bold text-gray-800">Mostrar Códigos SKU</span>
+                                                            <span className="block text-xs text-gray-500 mt-0.5">Muestra los códigos de servicio en las tablas de cotización.</span>
+                                                        </div>
+                                                    </label>
+                                                </div>
+
+                                                {/* Hidden Blocks Restorer */}
+                                                {(() => {
+                                                    const masterBlocks = [
+                                                        { id: 'cover', name: 'Portada' },
+                                                        { id: 'header', name: 'Encabezado' },
+                                                        { id: 'client', name: 'Datos del Cliente' },
+                                                        { id: 'intro', name: 'Introducción' },
+                                                        { id: 'title', name: 'Título Principal' },
+                                                        { id: 'setup', name: 'Tabla: Setup Único' },
+                                                        { id: 'retainer', name: 'Tabla: Retainer Mensual' },
+                                                        { id: 'totals', name: 'Resumen de Inversión' },
+                                                        { id: 'footer', name: 'Pie de Página' }
+                                                    ];
+                                                    const hiddenBlocks = masterBlocks.filter(b => !pdfSettings.layoutBlocks.includes(b.id));
+
+                                                    if (hiddenBlocks.length === 0) return (
+                                                        <div className="text-center py-4 border-2 border-dashed border-gray-200 rounded-lg">
+                                                            <CheckCircle2 className="w-6 h-6 text-green-400 mx-auto mb-1" />
+                                                            <span className="text-xs font-medium text-gray-500">Todos los bloques están visibles</span>
+                                                        </div>
+                                                    );
+
+                                                    return (
+                                                        <div className="border border-red-100 bg-red-50/30 rounded-lg p-3">
+                                                            <label className="block text-[10px] font-bold text-red-800 uppercase tracking-wider mb-2 flex items-center">
+                                                                <EyeOff className="w-3 h-3 mr-1" /> Componentes Ocultos
+                                                            </label>
+                                                            <div className="space-y-2">
+                                                                {hiddenBlocks.map(block => (
+                                                                    <div key={block.id} className="flex justify-between items-center bg-white rounded-md px-2.5 py-2 border border-red-100 shadow-sm">
+                                                                        <span className="text-xs font-semibold text-gray-700">{block.name}</span>
+                                                                        <button
+                                                                            onClick={() => toggleBlockVisibility(block.id)}
+                                                                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 px-2 py-1 rounded transition-colors"
+                                                                        >
+                                                                            Restaurar
+                                                                        </button>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Action Bar */}
+                                    <div className="p-4 border-t border-gray-200 bg-gray-50 flex-shrink-0">
                                         <button
                                             onClick={handleSavePdfSettings}
-                                            className="w-full flex justify-center items-center text-sm font-bold text-white bg-green-600 hover:bg-green-700 py-2 rounded-lg transition-colors shadow-sm mt-4"
+                                            className="w-full flex justify-center items-center text-sm font-bold text-white bg-green-600 hover:bg-green-700 py-2.5 rounded-lg transition-colors shadow-sm"
                                         >
                                             <Save className="w-4 h-4 mr-2" />
-                                            Guardar Configuración
+                                            Guardar Cambios
                                         </button>
                                     </div>
                                 </div>
