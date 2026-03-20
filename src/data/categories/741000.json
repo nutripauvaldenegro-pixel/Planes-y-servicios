@@ -1,0 +1,19 @@
+{
+  "id": "741000",
+  "name": "Diseño de Identidad y UX/UI",
+  "description": "Costo de crear la marca y la experiencia visual.",
+  "items": [
+    { "id": "D-01", "name": "Conceptualización y Moodboard (Investigación visual)", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "D-02", "name": "Diseño de Isotipo (Símbolo)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "D-03", "name": "Diseño de Logotipo (Tipografía/Nombre)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "D-04", "name": "Definición de Paleta Cromática y Sistema Tipográfico", "description": "", "basePrice": 80000, "unit": "global", "recurring": false },
+    { "id": "D-05", "name": "Manual de Marca Básico (Reglas de uso esenciales)", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "D-06", "name": "Manual de Marca Corporativo (Aplicaciones avanzadas)", "description": "", "basePrice": 200000, "unit": "global", "recurring": false },
+    { "id": "D-07", "name": "Arquitectura de Información (Sitemap de web/app)", "description": "", "basePrice": 120000, "unit": "global", "recurring": false },
+    { "id": "D-08", "name": "Diseño UX / Wireframes (Estructura sin color)", "description": "", "basePrice": 40000, "unit": "pantalla", "recurring": false },
+    { "id": "D-09", "name": "Diseño UI / Mockups (Diseño final alta fidelidad)", "description": "", "basePrice": 60000, "unit": "pantalla", "recurring": false },
+    { "id": "D-10", "name": "Prototipado interactivo navegable (Figma)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "D-11", "name": "Diseño de iconografía personalizada y assets visuales", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "D-12", "name": "Diseño de papelería corporativa / firmas de email", "description": "", "basePrice": 80000, "unit": "global", "recurring": false }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "mkt",
+  "name": "Marketing 360 y Crecimiento",
+  "description": "Costo de atracción y medición.",
+  "items": [
+    { "id": "M-01", "name": "Setup de cuentas publicitarias (Business Manager, Google Ads)", "description": "", "basePrice": 80000, "unit": "global", "recurring": false },
+    { "id": "M-02", "name": "Instalación de Píxeles de seguimiento y Google Analytics", "description": "", "basePrice": 60000, "unit": "global", "recurring": false },
+    { "id": "M-03", "name": "Configuración de eventos de conversión (Google Tag Manager)", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "M-04", "name": "Diseño y desarrollo de Landing Page orientada a conversión", "description": "", "basePrice": 250000, "unit": "global", "recurring": false },
+    { "id": "M-05", "name": "Redacción de Copywriting persuasivo para anuncios", "description": "", "basePrice": 60000, "unit": "global", "recurring": false },
+    { "id": "M-06", "name": "Diseño de piezas gráficas o edición de video para pauta publicitaria", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "M-07", "name": "Gestión y optimización de campañas de pago", "description": "Fee mensual", "basePrice": 250000, "unit": "mensual", "recurring": true },
+    { "id": "M-08", "name": "Creación de contenido orgánico para redes sociales", "description": "Packs mensuales", "basePrice": 300000, "unit": "mensual", "recurring": true },
+    { "id": "M-09", "name": "Auditoría y optimización SEO On-Page (Posicionamiento en Google)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "M-10", "name": "Creación de Dashboard de Métricas en tiempo real (ej. Looker Studio)", "description": "", "basePrice": 120000, "unit": "global", "recurring": false },
+    { "id": "M-11", "name": "Generación de Reporte de Rendimiento mensual", "description": "", "basePrice": 50000, "unit": "mensual", "recurring": true }
+  ]
+}
