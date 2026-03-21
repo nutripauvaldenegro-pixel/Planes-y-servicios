@@ -210,6 +210,38 @@ export default function App() {
     }
   };
 
+  const handleSelectAllInCategory = (categoryId: string, checked: boolean) => {
+    const category = catalog.find(c => c.id === categoryId);
+    if (!category) return;
+
+    // items allowed to be selected normally (ignoring global modifiers like A-04)
+    const selectableItems = category.items.filter(item => !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id));
+
+    setSelectedServices(prev => {
+      const newObj = { ...prev };
+
+      if (checked) {
+        // Add all items in category
+        selectableItems.forEach(item => {
+          if (!newObj[item.id]) {
+            const customVars: Record<string, number> = {};
+            if (item.variables) {
+                item.variables.forEach(v => customVars[v.id] = v.defaultValue);
+            }
+            newObj[item.id] = { item, quantity: 1, customVariables: customVars };
+          }
+        });
+      } else {
+        // Remove all items in category
+        selectableItems.forEach(item => {
+          delete newObj[item.id];
+        });
+      }
+
+      return newObj;
+    });
+  };
+
   // Toggle selection
   const handleSelectService = (item: ServiceItem) => {
     setSelectedServices(prev => {
@@ -1024,17 +1056,37 @@ export default function App() {
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-6">
-                {catalog.map((category) => (
+                {catalog.map((category) => {
+                  const selectableItems = category.items.filter(item => !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id));
+                  const allSelected = selectableItems.length > 0 && selectableItems.every(item => !!selectedServices[item.id]);
+
+                  return (
                   <div key={category.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                     <div
-                        className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center space-x-3 cursor-pointer hover:bg-gray-100 transition-colors"
+                        className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between cursor-pointer hover:bg-gray-100 transition-colors"
                         onClick={() => toggleConfigureSection(category.id)}
                     >
-                      {configureExpandedSections[category.id] !== false ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
-                      <div>
-                          <h2 className="text-lg font-semibold text-gray-800">{category.name}</h2>
-                          <p className="text-sm text-gray-500">{category.description}</p>
+                      <div className="flex items-center space-x-3">
+                          {configureExpandedSections[category.id] !== false ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                          <div>
+                              <h2 className="text-lg font-semibold text-gray-800">{category.name}</h2>
+                              <p className="text-sm text-gray-500">{category.description}</p>
+                          </div>
                       </div>
+
+                      {selectableItems.length > 0 && (
+                          <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                              <label className="flex items-center cursor-pointer text-sm font-medium text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
+                                  <input
+                                      type="checkbox"
+                                      className="mr-2 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                                      checked={allSelected}
+                                      onChange={(e) => handleSelectAllInCategory(category.id, e.target.checked)}
+                                  />
+                                  Seleccionar todos
+                              </label>
+                          </div>
+                      )}
                     </div>
                     {configureExpandedSections[category.id] !== false && (
                     <div className="divide-y divide-gray-100 animate-in slide-in-from-top-2 duration-200 fade-in">
@@ -1114,7 +1166,8 @@ export default function App() {
                     </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               <div className="lg:col-span-1">
