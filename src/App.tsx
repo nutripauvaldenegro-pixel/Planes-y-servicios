@@ -151,7 +151,7 @@ export default function App() {
   const toggleAdminSection = (sectionId: string) => {
     setAdminExpandedSections(prev => ({
       ...prev,
-      [sectionId]: !prev[sectionId]
+      [sectionId]: prev[sectionId] !== false ? false : true
     }));
   };
 
@@ -166,7 +166,7 @@ export default function App() {
   const toggleConfigureSection = (categoryId: string) => {
     setConfigureExpandedSections(prev => ({
       ...prev,
-      [categoryId]: !prev[categoryId]
+      [categoryId]: prev[categoryId] !== false ? false : true
     }));
   };
 
@@ -1074,8 +1074,8 @@ export default function App() {
                           </div>
                       </div>
 
-                      {selectableItems.length > 0 && (
-                          <div className="flex items-center" onClick={e => e.stopPropagation()}>
+                      {selectableItems.length > 0 && configureExpandedSections[category.id] !== false && (
+                          <div className="flex items-center animate-in fade-in" onClick={e => e.stopPropagation()}>
                               <label className="flex items-center cursor-pointer text-sm font-medium text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors shadow-sm">
                                   <input
                                       type="checkbox"
