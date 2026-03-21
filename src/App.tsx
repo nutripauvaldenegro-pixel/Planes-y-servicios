@@ -16,6 +16,15 @@ type Modifiers = {
   thirdPartyMarkup: boolean;
 };
 
+export type QuoteDraft = {
+  clientInfo: { name: string; company: string; email: string; date: string };
+  selectedServices: Record<string, SelectedService>;
+  modifiers: Modifiers;
+  quoteCustom: { title: string; introduction: string; footer: string; isEditing: boolean };
+  totals: { oneTimeTotal: number; recurringTotal: number; oneTimeBase: number; recurringBase: number; urgencyModifier: number; financingModifier: number; successFeeModifier: number; thirdPartyModifier: number };
+  pdfSettings: PdfSettings;
+};
+
 export type SavedQuote = {
   id: string;
   date: string;
@@ -139,6 +148,18 @@ export default function App() {
     introduction: '',
     footer: '', // Explicit empty string, default will be populated on render if empty
     isEditing: false
+  });
+
+  const [quoteDraft, setQuoteDraft] = useState<QuoteDraft | null>(() => {
+    const saved = localStorage.getItem('cpq-quote-draft');
+    if (saved) {
+      try {
+        return JSON.parse(saved) as QuoteDraft;
+      } catch (e) {
+        console.error('Error parsing quote draft', e);
+      }
+    }
+    return null;
   });
 
   const [adminPdfEditing, setAdminPdfEditing] = useState(false);
@@ -447,6 +468,21 @@ export default function App() {
     }
   };
 
+  const handleGenerateFinalDocument = () => {
+      const newDraft: QuoteDraft = {
+          clientInfo: { ...clientInfo },
+          selectedServices: { ...selectedServices },
+          modifiers: { ...modifiers },
+          totals: { ...calculatePrices },
+          pdfSettings: { ...pdfSettings },
+          // Mantener los textos customizados si ya existía un draft, si no, crear vacío
+          quoteCustom: quoteDraft ? { ...quoteDraft.quoteCustom } : { title: '', introduction: '', footer: '', isEditing: false }
+      };
+
+      setQuoteDraft(newDraft);
+      localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+  };
+
   const handleSaveCategory = () => {
       saveCatalogState(catalog);
       // Optional: Show some success feedback
@@ -500,21 +536,26 @@ export default function App() {
   };
 
   const handleSaveAndPrint = () => {
+    if (!quoteDraft) {
+        alert("Primero debes generar el documento final.");
+        return;
+    }
+
     // Generate a unique ID based on date and time
     const quoteId = `QT-${Date.now().toString(36).toUpperCase()}`;
 
     const newQuote: SavedQuote = {
       id: quoteId,
       date: new Date().toISOString(),
-      clientInfo: { ...clientInfo },
-      selectedServices: { ...selectedServices },
-      modifiers: { ...modifiers },
-      quoteCustom: { ...quoteCustom, isEditing: false }, // don't save editing state
+      clientInfo: { ...quoteDraft.clientInfo },
+      selectedServices: { ...quoteDraft.selectedServices },
+      modifiers: { ...quoteDraft.modifiers },
+      quoteCustom: { ...quoteDraft.quoteCustom, isEditing: false }, // don't save editing state
       totals: {
-        oneTimeTotal: calculatePrices.oneTimeTotal,
-        recurringTotal: calculatePrices.recurringTotal
+        oneTimeTotal: quoteDraft.totals.oneTimeTotal,
+        recurringTotal: quoteDraft.totals.recurringTotal
       },
-      pdfSettings: { ...pdfSettings }
+      pdfSettings: { ...quoteDraft.pdfSettings }
     };
 
     const newSavedQuotes = [newQuote, ...savedQuotes];
@@ -522,8 +563,10 @@ export default function App() {
     localStorage.setItem('cpq-saved-quotes', JSON.stringify(newSavedQuotes));
 
     // Close edit mode if it was open to ensure it prints clean
-    if (quoteCustom.isEditing) {
-      setQuoteCustom(prev => ({ ...prev, isEditing: false }));
+    if (quoteDraft.quoteCustom.isEditing) {
+      const updatedDraft = { ...quoteDraft, quoteCustom: { ...quoteDraft.quoteCustom, isEditing: false } };
+      setQuoteDraft(updatedDraft);
+      localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
       // Give React a tick to update the DOM before printing
       setTimeout(() => window.print(), 100);
     } else {
@@ -532,14 +575,29 @@ export default function App() {
   };
 
   const loadSavedQuote = (quote: SavedQuote) => {
-    if (confirm('¿Estás seguro de cargar este presupuesto? Perderás el trabajo actual no guardado.')) {
+    if (confirm('¿Estás seguro de cargar este presupuesto? Perderás el trabajo actual no guardado en el borrador de Quote.')) {
+      // Set the live configuration state to match the loaded quote
       setClientInfo(quote.clientInfo);
       setSelectedServices(quote.selectedServices);
       setModifiers(quote.modifiers);
-      setQuoteCustom({ ...quote.quoteCustom, isEditing: false });
-      if (quote.pdfSettings) {
-        setPdfSettings(quote.pdfSettings);
-      }
+
+      // We do NOT override the global pdfSettings (Admin), but we DO create a new QuoteDraft from the saved quote.
+      const newDraft: QuoteDraft = {
+          clientInfo: { ...quote.clientInfo },
+          selectedServices: { ...quote.selectedServices },
+          modifiers: { ...quote.modifiers },
+          quoteCustom: { ...quote.quoteCustom, isEditing: false },
+          totals: {
+              oneTimeTotal: quote.totals.oneTimeTotal,
+              recurringTotal: quote.totals.recurringTotal,
+              oneTimeBase: 0, recurringBase: 0, urgencyModifier: 0, financingModifier: 0, successFeeModifier: 0, thirdPartyModifier: 0 // Mock legacy totals if needed
+          },
+          pdfSettings: quote.pdfSettings || pdfSettings
+      };
+
+      setQuoteDraft(newDraft);
+      localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+
       setActiveTab('quote');
     }
   };
@@ -591,13 +649,41 @@ export default function App() {
   };
 
   const renderPdfDocument = (mode: 'admin' | 'quote') => {
+      if (mode === 'quote' && !quoteDraft) {
+          return (
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center text-gray-500">
+                  <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No hay un documento generado</h3>
+                  <p className="text-sm max-w-md mx-auto">
+                      Haz clic en el botón "Generar documento Final (Q)" en la parte superior para crear tu propuesta basándote en la configuración actual.
+                  </p>
+              </div>
+          );
+      }
+
       const isGlobalEditing = mode === 'admin';
-      const isLocalEditing = mode === 'quote' && quoteCustom.isEditing;
+      const isLocalEditing = mode === 'quote' && quoteDraft?.quoteCustom?.isEditing;
       const isEditing = isGlobalEditing || isLocalEditing;
 
-      const titleVal = isGlobalEditing ? pdfSettings.defaultTitle : (quoteCustom.title || pdfSettings.defaultTitle);
-      const introVal = isGlobalEditing ? pdfSettings.defaultIntroduction : (quoteCustom.introduction || pdfSettings.defaultIntroduction);
-      const footerVal = isGlobalEditing ? pdfSettings.defaultFooter : (quoteCustom.footer || pdfSettings.defaultFooter);
+      // Extract variables based on mode
+      const activeSettings = mode === 'admin' ? pdfSettings : quoteDraft!.pdfSettings;
+      const activeClientInfo = mode === 'admin' ? clientInfo : quoteDraft!.clientInfo;
+      const activeServicesObj = mode === 'admin' ? selectedServices : quoteDraft!.selectedServices;
+      const activeTotals = mode === 'admin' ? calculatePrices : quoteDraft!.totals;
+
+      const titleVal = isGlobalEditing ? activeSettings.defaultTitle : (quoteDraft!.quoteCustom.title || activeSettings.defaultTitle);
+      const introVal = isGlobalEditing ? activeSettings.defaultIntroduction : (quoteDraft!.quoteCustom.introduction || activeSettings.defaultIntroduction);
+      const footerVal = isGlobalEditing ? activeSettings.defaultFooter : (quoteDraft!.quoteCustom.footer || activeSettings.defaultFooter);
+
+      const updateDraftCustom = (key: 'title' | 'introduction' | 'footer', value: string) => {
+          if (mode !== 'quote' || !quoteDraft) return;
+          const updatedDraft = {
+              ...quoteDraft,
+              quoteCustom: { ...quoteDraft.quoteCustom, [key]: value }
+          };
+          setQuoteDraft(updatedDraft);
+          localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
+      };
 
       const renderBlockToolbar = (block: string, index: number) => {
           if (!isGlobalEditing) return null;
@@ -695,27 +781,27 @@ export default function App() {
                                           {isEditing ? (
                                               <div className="flex items-center justify-end space-x-2 mb-1 print:hidden">
                                                   <span className="font-medium text-gray-400">Fecha:</span>
-                                                  <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer" />
+                                                  <p className="border border-gray-200 rounded px-2 py-1 text-sm bg-gray-50 text-gray-600 cursor-not-allowed">{activeClientInfo.date}</p>
                                               </div>
                                           ) : (
-                                              <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                                              <p>Fecha: {new Date(activeClientInfo.date).toLocaleDateString('es-CL')}</p>
                                           )}
-                                          <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                                          <p>Cotización Nº: {activeClientInfo.date.replace(/-/g, '').slice(2)}01</p>
                                       </div>
                                   </>
                               ) : (
                                   <>
-                                      {pdfSettings.logoUrl && <img src={pdfSettings.logoUrl} alt="Logo" className={`max-h-16 ${pdfSettings.headerLayout === 'center' ? 'mb-4' : 'mr-4'}`} />}
+                                      {activeSettings.logoUrl && <img src={activeSettings.logoUrl} alt="Logo" className={`max-h-16 ${activeSettings.headerLayout === 'center' ? 'mb-4' : 'mr-4'}`} />}
                                       <div>
                                           {isGlobalEditing ? (
                                               <>
-                                                  <input value={pdfSettings.companyName} onChange={e => setPdfSettings({...pdfSettings, companyName: e.target.value})} className={`block text-3xl font-black text-gray-900 tracking-tight bg-transparent border-b border-dashed border-gray-300 hover:border-indigo-400 focus:outline-none ${pdfSettings.headerLayout === 'center' ? 'text-center mx-auto' : ''}`} />
-                                                  <input value={pdfSettings.companyTagline} onChange={e => setPdfSettings({...pdfSettings, companyTagline: e.target.value})} className={`block font-semibold tracking-wide bg-transparent border-b border-dashed border-gray-300 hover:border-indigo-400 focus:outline-none ${pdfSettings.headerLayout === 'center' ? 'text-center mx-auto' : ''}`} style={{ color: pdfSettings.primaryColor }} />
+                                                  <input value={activeSettings.companyName} onChange={e => setPdfSettings({...pdfSettings, companyName: e.target.value})} className={`block text-3xl font-black text-gray-900 tracking-tight bg-transparent border-b border-dashed border-gray-300 hover:border-indigo-400 focus:outline-none ${activeSettings.headerLayout === 'center' ? 'text-center mx-auto' : ''}`} />
+                                                  <input value={activeSettings.companyTagline} onChange={e => setPdfSettings({...pdfSettings, companyTagline: e.target.value})} className={`block font-semibold tracking-wide bg-transparent border-b border-dashed border-gray-300 hover:border-indigo-400 focus:outline-none ${activeSettings.headerLayout === 'center' ? 'text-center mx-auto' : ''}`} style={{ color: activeSettings.primaryColor }} />
                                               </>
                                           ) : (
                                               <>
-                                                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">{pdfSettings.companyName}</h1>
-                                                  <p className="font-semibold tracking-wide" style={{ color: pdfSettings.primaryColor }}>{pdfSettings.companyTagline}</p>
+                                                  <h1 className="text-3xl font-black text-gray-900 tracking-tight">{activeSettings.companyName}</h1>
+                                                  <p className="font-semibold tracking-wide" style={{ color: activeSettings.primaryColor }}>{activeSettings.companyTagline}</p>
                                               </>
                                           )}
                                       </div>
@@ -723,48 +809,60 @@ export default function App() {
                               )}
                           </div>
 
-                          {pdfSettings.headerLayout !== 'left' && (
-                              <div className={`text-sm text-gray-500 ${pdfSettings.headerLayout === 'center' ? 'text-center' : 'text-right'}`}>
+                          {activeSettings.headerLayout !== 'left' && (
+                              <div className={`text-sm text-gray-500 ${activeSettings.headerLayout === 'center' ? 'text-center' : 'text-right'}`}>
                                   {isEditing ? (
-                                      <div className={`flex items-center space-x-2 mb-1 print:hidden ${pdfSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
+                                      <div className={`flex items-center space-x-2 mb-1 print:hidden ${activeSettings.headerLayout === 'center' ? 'justify-center' : 'justify-end'}`}>
                                           <span className="font-medium text-gray-400">Fecha:</span>
-                                          <input type="date" value={clientInfo.date} onChange={e => setClientInfo({...clientInfo, date: e.target.value})} className="border border-blue-200 rounded px-2 py-1 text-sm bg-blue-50 focus:bg-white focus:ring-1 focus:ring-blue-500 outline-none hover:bg-blue-100 transition-colors cursor-pointer" />
+                                          <p className="border border-gray-200 rounded px-2 py-1 text-sm bg-gray-50 text-gray-600 cursor-not-allowed">{activeClientInfo.date}</p>
                                       </div>
                                   ) : (
-                                      <p>Fecha: {new Date(clientInfo.date).toLocaleDateString('es-CL')}</p>
+                                      <p>Fecha: {new Date(activeClientInfo.date).toLocaleDateString('es-CL')}</p>
                                   )}
-                                  <p>Cotización Nº: {clientInfo.date.replace(/-/g, '').slice(2)}01</p>
+                                  <p>Cotización Nº: {activeClientInfo.date.replace(/-/g, '').slice(2)}01</p>
                               </div>
                           )}
                       </div>
                   )}
 
-                  {block === 'client' && (isGlobalEditing || clientInfo.name || clientInfo.company || isEditing) && (
-                      <div className={`mb-8 ${pdfSettings.showCoverPage ? 'print:hidden' : ''}`}>
+                  {block === 'client' && (isGlobalEditing || activeClientInfo.name || activeClientInfo.company || isEditing) && (
+                      <div className={`mb-8 ${activeSettings.showCoverPage ? 'print:hidden' : ''}`}>
                           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Preparado para</h3>
                           {isEditing ? (
                               <div className="space-y-1 max-w-md print:hidden">
                                   <input
                                       type="text"
                                       placeholder="Nombre del cliente o Empresa"
-                                      value={isGlobalEditing ? '[Nombre Cliente]' : clientInfo.name}
-                                      onChange={e => !isGlobalEditing && setClientInfo({...clientInfo, name: e.target.value})}
+                                      value={isGlobalEditing ? '[Nombre Cliente]' : activeClientInfo.name}
+                                      onChange={e => {
+                                          if (!isGlobalEditing && mode === 'quote' && quoteDraft) {
+                                              const newDraft = {...quoteDraft, clientInfo: {...quoteDraft.clientInfo, name: e.target.value}};
+                                              setQuoteDraft(newDraft);
+                                              localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+                                          }
+                                      }}
                                       className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-lg font-semibold text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
                                       readOnly={isGlobalEditing}
                                   />
                                   <input
                                       type="text"
                                       placeholder="Empresa o Cargo (opcional)"
-                                      value={isGlobalEditing ? '[Empresa]' : clientInfo.company}
-                                      onChange={e => !isGlobalEditing && setClientInfo({...clientInfo, company: e.target.value})}
+                                      value={isGlobalEditing ? '[Empresa]' : activeClientInfo.company}
+                                      onChange={e => {
+                                          if (!isGlobalEditing && mode === 'quote' && quoteDraft) {
+                                              const newDraft = {...quoteDraft, clientInfo: {...quoteDraft.clientInfo, company: e.target.value}};
+                                              setQuoteDraft(newDraft);
+                                              localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+                                          }
+                                      }}
                                       className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
                                       readOnly={isGlobalEditing}
                                   />
                               </div>
                           ) : (
                               <>
-                                  <p className="font-semibold text-gray-900 text-lg">{clientInfo.name || 'Cliente'}</p>
-                                  {clientInfo.company && <p className="text-gray-600">{clientInfo.company}</p>}
+                                  <p className="font-semibold text-gray-900 text-lg">{activeClientInfo.name || 'Cliente'}</p>
+                                  {activeClientInfo.company && <p className="text-gray-600">{activeClientInfo.company}</p>}
                               </>
                           )}
                       </div>
@@ -776,7 +874,7 @@ export default function App() {
                               <textarea
                                   placeholder="Haz clic aquí para escribir un párrafo introductorio..."
                                   value={introVal}
-                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultIntroduction: e.target.value}) : setQuoteCustom({...quoteCustom, introduction: e.target.value})}
+                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultIntroduction: e.target.value}) : updateDraftCustom('introduction', e.target.value)}
                                   className={`w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden ${isGlobalEditing ? 'bg-blue-50' : ''}`}
                               />
                           ) : (
@@ -802,36 +900,36 @@ export default function App() {
 
                   {block === 'setup' && (
                       <div className="mb-6">
-                          <h3 className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}>
+                          <h3 className={`font-semibold mb-3 ${activeSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : activeSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={activeSettings.sectionHeaders === 'filled' ? { backgroundColor: activeSettings.primaryColor } : activeSettings.sectionHeaders === 'underlined' ? { borderColor: activeSettings.primaryColor } : { color: activeSettings.primaryColor }}>
                               1. Servicios de Setup (Pago Único)
                           </h3>
-                          <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
+                          <table className={`w-full text-sm text-left ${activeSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                               <thead>
-                                  <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
-                                      {(pdfSettings.tableColumns.code || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, code: !pdfSettings.tableColumns.code}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.code && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Código</th>}
-                                      {(pdfSettings.tableColumns.name || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, name: !pdfSettings.tableColumns.name}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.name && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Descripción</th>}
-                                      {(pdfSettings.tableColumns.description || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, description: !pdfSettings.tableColumns.description}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.description && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Detalle</th>}
-                                      {(pdfSettings.tableColumns.quantity || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, quantity: !pdfSettings.tableColumns.quantity}})} className={`py-2 px-2 font-medium text-center ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Cant.</th>}
-                                      {(pdfSettings.tableColumns.unitPrice || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, unitPrice: !pdfSettings.tableColumns.unitPrice}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>P. Unitario</th>}
-                                      {(pdfSettings.tableColumns.subtotal || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, subtotal: !pdfSettings.tableColumns.subtotal}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Subtotal</th>}
+                                  <tr className={`border-b text-gray-500 ${activeSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: activeSettings.tableStyle !== 'bordered' ? activeSettings.primaryColor : '#e5e7eb' }}>
+                                      {(activeSettings.tableColumns.code || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, code: !pdfSettings.tableColumns.code}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.code && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Código</th>}
+                                      {(activeSettings.tableColumns.name || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, name: !pdfSettings.tableColumns.name}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.name && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Descripción</th>}
+                                      {(activeSettings.tableColumns.description || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, description: !pdfSettings.tableColumns.description}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.description && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Detalle</th>}
+                                      {(activeSettings.tableColumns.quantity || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, quantity: !pdfSettings.tableColumns.quantity}})} className={`py-2 px-2 font-medium text-center ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Cant.</th>}
+                                      {(activeSettings.tableColumns.unitPrice || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, unitPrice: !pdfSettings.tableColumns.unitPrice}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>P. Unitario</th>}
+                                      {(activeSettings.tableColumns.subtotal || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, subtotal: !pdfSettings.tableColumns.subtotal}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Subtotal</th>}
                                   </tr>
                               </thead>
-                              <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
-                                  {Object.values(selectedServices).filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)).length === 0 ? (
+                              <tbody className={activeSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
+                                  {Object.values(activeServicesObj).filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)).length === 0 ? (
                                       <tr><td colSpan={6} className="py-4 text-center text-gray-400 italic">No hay servicios únicos seleccionados</td></tr>
                                   ) : (
-                                      Object.values(selectedServices)
+                                      Object.values(activeServicesObj)
                                           .filter(({item}) => !item.recurring && !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id))
                                           .map(({item, quantity, customVariables}, idx) => {
                                               const price = evaluateItemPrice(item, customVariables);
                                               return (
-                                                  <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
-                                                      {(pdfSettings.tableColumns.code || isGlobalEditing) && <td className={`py-3 px-2 font-mono text-xs text-gray-500 ${!pdfSettings.tableColumns.code && isGlobalEditing ? 'opacity-30' : ''}`}>{item.id}</td>}
-                                                      {(pdfSettings.tableColumns.name || isGlobalEditing) && <td className={`py-3 px-2 font-medium text-gray-900 ${!pdfSettings.tableColumns.name && isGlobalEditing ? 'opacity-30' : ''}`}>{item.name}</td>}
-                                                      {(pdfSettings.tableColumns.description || isGlobalEditing) && <td className={`py-3 px-2 text-xs text-gray-500 max-w-xs ${!pdfSettings.tableColumns.description && isGlobalEditing ? 'opacity-30' : ''}`}>{item.description}</td>}
-                                                      {(pdfSettings.tableColumns.quantity || isGlobalEditing) && <td className={`py-3 px-2 text-center text-gray-600 ${!pdfSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30' : ''}`}>{quantity}</td>}
-                                                      {(pdfSettings.tableColumns.unitPrice || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-600 ${!pdfSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price)}</td>}
-                                                      {(pdfSettings.tableColumns.subtotal || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-900 font-medium ${!pdfSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price * quantity)}</td>}
+                                                  <tr key={item.id} className={`${activeSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${activeSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                                                      {(activeSettings.tableColumns.code || isGlobalEditing) && <td className={`py-3 px-2 font-mono text-xs text-gray-500 ${!activeSettings.tableColumns.code && isGlobalEditing ? 'opacity-30' : ''}`}>{item.id}</td>}
+                                                      {(activeSettings.tableColumns.name || isGlobalEditing) && <td className={`py-3 px-2 font-medium text-gray-900 ${!activeSettings.tableColumns.name && isGlobalEditing ? 'opacity-30' : ''}`}>{item.name}</td>}
+                                                      {(activeSettings.tableColumns.description || isGlobalEditing) && <td className={`py-3 px-2 text-xs text-gray-500 max-w-xs ${!activeSettings.tableColumns.description && isGlobalEditing ? 'opacity-30' : ''}`}>{item.description}</td>}
+                                                      {(activeSettings.tableColumns.quantity || isGlobalEditing) && <td className={`py-3 px-2 text-center text-gray-600 ${!activeSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30' : ''}`}>{quantity}</td>}
+                                                      {(activeSettings.tableColumns.unitPrice || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-600 ${!activeSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price)}</td>}
+                                                      {(activeSettings.tableColumns.subtotal || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-900 font-medium ${!activeSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price * quantity)}</td>}
                                                   </tr>
                                               );
                                           })
@@ -841,35 +939,35 @@ export default function App() {
                       </div>
                   )}
 
-                  {block === 'retainer' && Object.values(selectedServices).some(({item}) => item.recurring) && (
+                  {block === 'retainer' && Object.values(activeServicesObj).some(({item}) => item.recurring) && (
                       <div className="mt-8 mb-6">
-                          <h3 className={`font-semibold mb-3 ${pdfSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : pdfSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={pdfSettings.sectionHeaders === 'filled' ? { backgroundColor: pdfSettings.primaryColor } : pdfSettings.sectionHeaders === 'underlined' ? { borderColor: pdfSettings.primaryColor } : { color: pdfSettings.primaryColor }}>
+                          <h3 className={`font-semibold mb-3 ${activeSettings.sectionHeaders === 'filled' ? 'p-2 rounded text-white' : activeSettings.sectionHeaders === 'underlined' ? 'border-b-2 pb-1 text-gray-800' : 'text-gray-800'}`} style={activeSettings.sectionHeaders === 'filled' ? { backgroundColor: activeSettings.primaryColor } : activeSettings.sectionHeaders === 'underlined' ? { borderColor: activeSettings.primaryColor } : { color: activeSettings.primaryColor }}>
                               2. Servicios Retainer (Mensual)
                           </h3>
-                          <table className={`w-full text-sm text-left ${pdfSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
+                          <table className={`w-full text-sm text-left ${activeSettings.tableStyle === 'bordered' ? 'border border-gray-200' : ''}`}>
                               <thead>
-                                  <tr className={`border-b text-gray-500 ${pdfSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: pdfSettings.tableStyle !== 'bordered' ? pdfSettings.primaryColor : '#e5e7eb' }}>
-                                      {(pdfSettings.tableColumns.code || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, code: !pdfSettings.tableColumns.code}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.code && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Código</th>}
-                                      {(pdfSettings.tableColumns.name || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, name: !pdfSettings.tableColumns.name}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.name && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Descripción</th>}
-                                      {(pdfSettings.tableColumns.description || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, description: !pdfSettings.tableColumns.description}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.description && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Detalle</th>}
-                                      {(pdfSettings.tableColumns.quantity || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, quantity: !pdfSettings.tableColumns.quantity}})} className={`py-2 px-2 font-medium text-center ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Cant.</th>}
-                                      {(pdfSettings.tableColumns.unitPrice || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, unitPrice: !pdfSettings.tableColumns.unitPrice}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>P. Unitario</th>}
-                                      {(pdfSettings.tableColumns.subtotal || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, subtotal: !pdfSettings.tableColumns.subtotal}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!pdfSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Valor Mensual</th>}
+                                  <tr className={`border-b text-gray-500 ${activeSettings.tableStyle === 'bordered' ? 'bg-gray-50' : ''}`} style={{ borderColor: activeSettings.tableStyle !== 'bordered' ? activeSettings.primaryColor : '#e5e7eb' }}>
+                                      {(activeSettings.tableColumns.code || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, code: !pdfSettings.tableColumns.code}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.code && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Código</th>}
+                                      {(activeSettings.tableColumns.name || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, name: !pdfSettings.tableColumns.name}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.name && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Descripción</th>}
+                                      {(activeSettings.tableColumns.description || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, description: !pdfSettings.tableColumns.description}})} className={`py-2 px-2 font-medium ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.description && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Detalle</th>}
+                                      {(activeSettings.tableColumns.quantity || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, quantity: !pdfSettings.tableColumns.quantity}})} className={`py-2 px-2 font-medium text-center ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Cant.</th>}
+                                      {(activeSettings.tableColumns.unitPrice || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, unitPrice: !pdfSettings.tableColumns.unitPrice}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>P. Unitario</th>}
+                                      {(activeSettings.tableColumns.subtotal || isGlobalEditing) && <th onClick={() => isGlobalEditing && setPdfSettings({...pdfSettings, tableColumns: {...pdfSettings.tableColumns, subtotal: !pdfSettings.tableColumns.subtotal}})} className={`py-2 px-2 font-medium text-right ${isGlobalEditing ? 'cursor-pointer hover:bg-gray-100' : ''} ${!activeSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30 line-through' : ''}`}>Valor Mensual</th>}
                                   </tr>
                               </thead>
-                              <tbody className={pdfSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
-                                  {Object.values(selectedServices)
+                              <tbody className={activeSettings.tableStyle === 'minimal' ? 'divide-y divide-gray-100' : ''}>
+                                  {Object.values(activeServicesObj)
                                       .filter(({item}) => item.recurring)
                                       .map(({item, quantity, customVariables}, idx) => {
                                           const price = evaluateItemPrice(item, customVariables);
                                           return (
-                                              <tr key={item.id} className={`${pdfSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${pdfSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
-                                                  {(pdfSettings.tableColumns.code || isGlobalEditing) && <td className={`py-3 px-2 font-mono text-xs text-gray-500 ${!pdfSettings.tableColumns.code && isGlobalEditing ? 'opacity-30' : ''}`}>{item.id}</td>}
-                                                  {(pdfSettings.tableColumns.name || isGlobalEditing) && <td className={`py-3 px-2 font-medium text-gray-900 ${!pdfSettings.tableColumns.name && isGlobalEditing ? 'opacity-30' : ''}`}>{item.name}</td>}
-                                                  {(pdfSettings.tableColumns.description || isGlobalEditing) && <td className={`py-3 px-2 text-xs text-gray-500 max-w-xs ${!pdfSettings.tableColumns.description && isGlobalEditing ? 'opacity-30' : ''}`}>{item.description}</td>}
-                                                  {(pdfSettings.tableColumns.quantity || isGlobalEditing) && <td className={`py-3 px-2 text-center text-gray-600 ${!pdfSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30' : ''}`}>{quantity}</td>}
-                                                  {(pdfSettings.tableColumns.unitPrice || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-600 ${!pdfSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price)}</td>}
-                                                  {(pdfSettings.tableColumns.subtotal || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-900 font-medium ${!pdfSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price * quantity)}</td>}
+                                              <tr key={item.id} className={`${activeSettings.tableStyle === 'striped' && idx % 2 === 0 ? 'bg-gray-50' : ''} ${activeSettings.tableStyle === 'bordered' ? 'border-b border-gray-200' : ''}`}>
+                                                  {(activeSettings.tableColumns.code || isGlobalEditing) && <td className={`py-3 px-2 font-mono text-xs text-gray-500 ${!activeSettings.tableColumns.code && isGlobalEditing ? 'opacity-30' : ''}`}>{item.id}</td>}
+                                                  {(activeSettings.tableColumns.name || isGlobalEditing) && <td className={`py-3 px-2 font-medium text-gray-900 ${!activeSettings.tableColumns.name && isGlobalEditing ? 'opacity-30' : ''}`}>{item.name}</td>}
+                                                  {(activeSettings.tableColumns.description || isGlobalEditing) && <td className={`py-3 px-2 text-xs text-gray-500 max-w-xs ${!activeSettings.tableColumns.description && isGlobalEditing ? 'opacity-30' : ''}`}>{item.description}</td>}
+                                                  {(activeSettings.tableColumns.quantity || isGlobalEditing) && <td className={`py-3 px-2 text-center text-gray-600 ${!activeSettings.tableColumns.quantity && isGlobalEditing ? 'opacity-30' : ''}`}>{quantity}</td>}
+                                                  {(activeSettings.tableColumns.unitPrice || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-600 ${!activeSettings.tableColumns.unitPrice && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price)}</td>}
+                                                  {(activeSettings.tableColumns.subtotal || isGlobalEditing) && <td className={`py-3 px-2 text-right text-gray-900 font-medium ${!activeSettings.tableColumns.subtotal && isGlobalEditing ? 'opacity-30' : ''}`}>{formatCurrency(price * quantity)}</td>}
                                               </tr>
                                           );
                                       })}
@@ -879,37 +977,37 @@ export default function App() {
                   )}
 
                   {block === 'totals' && (
-                      <div className="mt-12 p-8 rounded-xl print:break-inside-avoid" style={{ backgroundColor: pdfSettings.themeStyle === 'creative' ? pdfSettings.accentColor + '10' : '#f9fafb', border: `1px solid ${pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '#e5e7eb'}` }}>
-                          <h3 className="font-bold text-gray-800 mb-6 uppercase tracking-wider" style={{ color: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor : '' }}>
+                      <div className="mt-12 p-8 rounded-xl print:break-inside-avoid" style={{ backgroundColor: activeSettings.themeStyle === 'creative' ? activeSettings.accentColor + '10' : '#f9fafb', border: `1px solid ${activeSettings.themeStyle === 'professional' ? activeSettings.accentColor : '#e5e7eb'}` }}>
+                          <h3 className="font-bold text-gray-800 mb-6 uppercase tracking-wider" style={{ color: activeSettings.themeStyle === 'professional' ? activeSettings.accentColor : '' }}>
                               Resumen de Inversión
                           </h3>
-                          <div className="space-y-3 mb-6 pb-6 border-b" style={{ borderColor: pdfSettings.themeStyle === 'professional' ? pdfSettings.accentColor + '30' : '#e5e7eb' }}>
+                          <div className="space-y-3 mb-6 pb-6 border-b" style={{ borderColor: activeSettings.themeStyle === 'professional' ? activeSettings.accentColor + '30' : '#e5e7eb' }}>
                               <div className="flex justify-between text-sm font-medium text-gray-600">
                                   <span>Subtotal Setup de Proyecto</span>
-                                  <span>{formatCurrency(calculatePrices.oneTimeBase)}</span>
+                                  <span>{formatCurrency(activeTotals.oneTimeBase)}</span>
                               </div>
                               {modifiers.urgency && (
                                   <div className="flex justify-between text-sm text-gray-500">
                                       <span>Recargo por Urgencia</span>
-                                      <span>{formatCurrency(calculatePrices.urgencyModifier)}</span>
+                                      <span>{formatCurrency(activeTotals.urgencyModifier)}</span>
                                   </div>
                               )}
                               {modifiers.financing && (
                                   <div className="flex justify-between text-sm text-gray-500">
                                       <span>Recargo por Financiamiento</span>
-                                      <span>{formatCurrency(calculatePrices.financingModifier)}</span>
+                                      <span>{formatCurrency(activeTotals.financingModifier)}</span>
                                   </div>
                               )}
                               {modifiers.successFee && (
                                   <div className="flex justify-between text-sm text-gray-500">
                                       <span>Tasa de Riesgo/Éxito (Startups)</span>
-                                      <span>{formatCurrency(calculatePrices.successFeeModifier)}</span>
+                                      <span>{formatCurrency(activeTotals.successFeeModifier)}</span>
                                   </div>
                               )}
                               {modifiers.thirdPartyMarkup && (
                                   <div className="flex justify-between text-sm text-gray-500">
                                       <span>Markup de Terceros</span>
-                                      <span>{formatCurrency(calculatePrices.thirdPartyModifier)}</span>
+                                      <span>{formatCurrency(activeTotals.thirdPartyModifier)}</span>
                                   </div>
                               )}
                           </div>
@@ -917,12 +1015,12 @@ export default function App() {
                           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                               <div className="flex-1 w-full">
                                   <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Inicial Única</p>
-                                  <p className="text-4xl font-black text-gray-900">{formatCurrency(calculatePrices.oneTimeTotal)}</p>
+                                  <p className="text-4xl font-black text-gray-900">{formatCurrency(activeTotals.oneTimeTotal)}</p>
                               </div>
-                              {calculatePrices.recurringTotal > 0 && (
+                              {activeTotals.recurringTotal > 0 && (
                                   <div className="flex-1 w-full md:text-right">
                                       <p className="text-xs font-bold text-gray-500 uppercase mb-1">Inversión Mensual (Retainer)</p>
-                                      <p className="text-3xl font-black" style={{ color: pdfSettings.primaryColor }}>{formatCurrency(calculatePrices.recurringTotal)}<span className="text-lg font-medium text-gray-500">/mes</span></p>
+                                      <p className="text-3xl font-black" style={{ color: activeSettings.primaryColor }}>{formatCurrency(activeTotals.recurringTotal)}<span className="text-lg font-medium text-gray-500">/mes</span></p>
                                   </div>
                               )}
                           </div>
@@ -934,7 +1032,7 @@ export default function App() {
                           {isEditing ? (
                               <textarea
                                   value={footerVal}
-                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultFooter: e.target.value}) : setQuoteCustom({...quoteCustom, footer: e.target.value})}
+                                  onChange={e => isGlobalEditing ? setPdfSettings({...pdfSettings, defaultFooter: e.target.value}) : updateDraftCustom('footer', e.target.value)}
                                   className={`w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded p-2 text-gray-500 text-center focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[80px] resize-y transition-colors print:hidden ${isGlobalEditing ? 'bg-blue-50' : ''}`}
                               />
                           ) : (
@@ -1336,7 +1434,10 @@ export default function App() {
 
                   <div className="p-4 bg-gray-50 border-t border-gray-200">
                     <button
-                      onClick={() => setActiveTab('quote')}
+                      onClick={() => {
+                        handleGenerateFinalDocument();
+                        setActiveTab('quote');
+                      }}
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center transition-colors shadow-sm"
                     >
                       Generar Documento Final (Q)
@@ -2253,32 +2354,35 @@ export default function App() {
               </div>
               <div className="flex space-x-3">
                 <button
-                  onClick={() => setQuoteCustom({...quoteCustom, isEditing: !quoteCustom.isEditing})}
-                  className={`border font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm ${quoteCustom.isEditing ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                  onClick={handleGenerateFinalDocument}
+                  className="bg-indigo-600 border border-indigo-700 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm"
                 >
-                  {quoteCustom.isEditing ? <Eye className="w-4 h-4 mr-2" /> : <Edit3 className="w-4 h-4 mr-2" />}
-                  {quoteCustom.isEditing ? 'Modo Vista Previa' : 'Modo Edición PDF'}
+                  <RotateCcw className="w-4 h-4 mr-2" />
+                  Generar documento Final (Q)
                 </button>
-                <button onClick={handleSaveAndPrint} className="bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm">
+                <button
+                  onClick={() => {
+                      if (!quoteDraft) return;
+                      const updatedDraft = {
+                          ...quoteDraft,
+                          quoteCustom: { ...quoteDraft.quoteCustom, isEditing: !quoteDraft.quoteCustom.isEditing }
+                      };
+                      setQuoteDraft(updatedDraft);
+                      localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
+                  }}
+                  disabled={!quoteDraft}
+                  className={`border font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm disabled:opacity-50 ${quoteDraft?.quoteCustom.isEditing ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}
+                >
+                  {quoteDraft?.quoteCustom.isEditing ? <Eye className="w-4 h-4 mr-2" /> : <Edit3 className="w-4 h-4 mr-2" />}
+                  {quoteDraft?.quoteCustom.isEditing ? 'Modo Vista Previa' : 'Modo Edición PDF'}
+                </button>
+                <button onClick={handleSaveAndPrint} disabled={!quoteDraft} className="bg-blue-600 border border-blue-700 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm disabled:opacity-50">
                   <FileText className="w-4 h-4 mr-2" />
                   Guardar e Imprimir PDF
                 </button>
               </div>
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 print:hidden">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Datos del Cliente</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Nombre del Cliente</label>
-                  <input type="text" value={clientInfo.name} onChange={e => setClientInfo({...clientInfo, name: e.target.value})} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2" placeholder="Ej. Juan Pérez" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Empresa</label>
-                  <input type="text" value={clientInfo.company} onChange={e => setClientInfo({...clientInfo, company: e.target.value})} className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm border p-2" placeholder="Ej. Acme Corp" />
-                </div>
-              </div>
-            </div>
 
             {/* Document to print mapped correctly with new dynamic renderer */}
             {renderPdfDocument('quote')}
