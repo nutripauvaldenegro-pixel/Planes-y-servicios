@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category, Pack } from './data/catalog';
-import { Check, Info, FileText, ChevronRight, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff, AlignLeft, AlignCenter, AlignJustify, Table, Type, Palette, LayoutTemplate, Type as TypeIcon, Image as ImageIcon } from 'lucide-react';
+import { Check, Info, FileText, ChevronRight, ChevronUp, ChevronDown, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff, AlignLeft, AlignCenter, AlignJustify, Table, Type, Palette, LayoutTemplate, Type as TypeIcon, Image as ImageIcon } from 'lucide-react';
 
 type SelectedService = {
   item: ServiceItem;
@@ -143,6 +143,29 @@ export default function App() {
 
   const [adminPdfEditing, setAdminPdfEditing] = useState(false);
   const [activePaletteTab, setActivePaletteTab] = useState<'brand' | 'typography' | 'layout' | 'components'>('brand');
+  const [adminExpandedSections, setAdminExpandedSections] = useState<Record<string, boolean>>({
+    pdf: true,
+    packs: true,
+  });
+
+  const toggleAdminSection = (sectionId: string) => {
+    setAdminExpandedSections(prev => ({
+      ...prev,
+      [sectionId]: !prev[sectionId]
+    }));
+  };
+
+  const expandAllAdminSections = () => {
+    const newState: Record<string, boolean> = { pdf: true, packs: true };
+    catalog.forEach(cat => newState[cat.id] = true);
+    setAdminExpandedSections(newState);
+  };
+
+  const collapseAllAdminSections = () => {
+    const newState: Record<string, boolean> = { pdf: false, packs: false };
+    catalog.forEach(cat => newState[cat.id] = false);
+    setAdminExpandedSections(newState);
+  };
 
   const evaluateItemPrice = (item: ServiceItem, customVars: Record<string, number>): number => {
     if (!item.priceFormula || item.priceFormula.trim() === '' || item.priceFormula === 'basePrice') {
@@ -1329,24 +1352,44 @@ export default function App() {
                         <h1 className="text-2xl font-bold text-gray-900">Admin: Control de Inventario</h1>
                         <p className="text-gray-500 mt-1">Modifica los valores, descripciones o agrega nuevos puntos al catálogo.</p>
                     </div>
-                    <button
-                        onClick={handleResetCatalog}
-                        className="flex items-center text-sm text-red-600 hover:bg-red-50 border border-red-200 px-3 py-2 rounded-lg transition-colors bg-white shadow-sm"
-                    >
-                        <RotateCcw className="w-4 h-4 mr-2" />
-                        Restaurar a Valores por Defecto
-                    </button>
+                    <div className="flex space-x-3">
+                        <button
+                            onClick={collapseAllAdminSections}
+                            className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors shadow-sm"
+                        >
+                            Ocultar Todo
+                        </button>
+                        <button
+                            onClick={expandAllAdminSections}
+                            className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors shadow-sm"
+                        >
+                            Desplegar Todo
+                        </button>
+                        <button
+                            onClick={handleResetCatalog}
+                            className="flex items-center text-sm text-red-600 hover:bg-red-50 border border-red-200 px-3 py-2 rounded-lg transition-colors bg-white shadow-sm"
+                        >
+                            <RotateCcw className="w-4 h-4 mr-2" />
+                            Valores por Defecto
+                        </button>
+                    </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-4">
                     {/* --- PDF SETTINGS --- */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-800">Configuración Base del PDF</h2>
-                                <p className="text-sm text-gray-500">Define los valores globales que aparecerán por defecto en todas las cotizaciones.</p>
+                        <div
+                            className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => toggleAdminSection('pdf')}
+                        >
+                            <div className="flex items-center space-x-3">
+                                {adminExpandedSections['pdf'] ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-800">Configuración Base del PDF</h2>
+                                    <p className="text-sm text-gray-500">Define los valores globales que aparecerán por defecto en todas las cotizaciones.</p>
+                                </div>
                             </div>
-                            <div className="flex space-x-3">
+                            <div className="flex space-x-3" onClick={e => e.stopPropagation()}>
                                 <button
                                     onClick={() => setAdminPdfEditing(!adminPdfEditing)}
                                     className={`border font-medium py-1.5 px-3 rounded-md flex items-center transition-colors shadow-sm text-sm ${adminPdfEditing ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}
@@ -1364,6 +1407,8 @@ export default function App() {
                             </div>
                         </div>
 
+                        {adminExpandedSections['pdf'] && (
+                        <div className="animate-in slide-in-from-top-2 duration-200 fade-in">
                         {adminPdfEditing ? (
                             <div className="bg-gray-200 p-8 border-b border-gray-300 overflow-x-auto relative min-h-screen">
                                 <div className="max-w-4xl mx-auto mb-8 bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex flex-col items-center justify-center gap-2 text-sm font-medium text-gray-600">
@@ -1756,16 +1801,24 @@ export default function App() {
                                 </button>
                             </div>
                         )}
+                        </div>
+                        )}
                     </div>
 
                     {/* --- PACKS MANAGEMENT --- */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                            <div>
-                                <h2 className="text-lg font-bold text-gray-800 flex items-center"><Package className="w-5 h-5 mr-2 text-indigo-500" /> Gestión de Packs Predefinidos</h2>
-                                <p className="text-sm text-gray-500">Agrupa servicios y define valores por defecto específicos para crear planes listos para vender.</p>
+                        <div
+                            className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                            onClick={() => toggleAdminSection('packs')}
+                        >
+                            <div className="flex items-center space-x-3">
+                                {adminExpandedSections['packs'] ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                <div>
+                                    <h2 className="text-lg font-bold text-gray-800 flex items-center"><Package className="w-5 h-5 mr-2 text-indigo-500" /> Gestión de Packs Predefinidos</h2>
+                                    <p className="text-sm text-gray-500">Agrupa servicios y define valores por defecto específicos para crear planes listos para vender.</p>
+                                </div>
                             </div>
-                            <div className="flex space-x-2">
+                            <div className="flex space-x-2" onClick={e => e.stopPropagation()}>
                                 <button
                                     onClick={handleCreatePack}
                                     className="flex items-center text-sm font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-md transition-colors"
@@ -1783,7 +1836,8 @@ export default function App() {
                             </div>
                         </div>
 
-                        <div className="p-6 space-y-6">
+                        {adminExpandedSections['packs'] && (
+                        <div className="p-6 space-y-6 animate-in slide-in-from-top-2 duration-200 fade-in">
                             {packs.length === 0 ? (
                                 <p className="text-center text-gray-500 text-sm py-4">Aún no has creado ningún Pack.</p>
                             ) : (
@@ -1902,16 +1956,23 @@ export default function App() {
                                 ))
                             )}
                         </div>
+                        )}
                     </div>
 
                     {catalog.map(category => (
                         <div key={category.id} className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                            <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                                <div>
-                                    <h2 className="text-lg font-bold text-gray-800">{category.name}</h2>
-                                    <p className="text-sm text-gray-500">{category.description}</p>
-                                </div>
+                            <div
+                                className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center cursor-pointer hover:bg-gray-100 transition-colors"
+                                onClick={() => toggleAdminSection(category.id)}
+                            >
                                 <div className="flex items-center space-x-3">
+                                    {adminExpandedSections[category.id] !== false ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                                    <div>
+                                        <h2 className="text-lg font-bold text-gray-800">{category.name}</h2>
+                                        <p className="text-sm text-gray-500">{category.description}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center space-x-3" onClick={e => e.stopPropagation()}>
                                     <button
                                         onClick={() => handleAddItem(category.id)}
                                         className="flex items-center text-sm font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
@@ -1929,7 +1990,8 @@ export default function App() {
                                 </div>
                             </div>
 
-                            <div className="divide-y divide-gray-100 p-2">
+                            {adminExpandedSections[category.id] !== false && (
+                            <div className="divide-y divide-gray-100 p-2 animate-in slide-in-from-top-2 duration-200 fade-in">
                                 {category.items.map(item => (
                                     <div key={item.id} className="p-4 grid grid-cols-12 gap-4 items-start hover:bg-gray-50 transition-colors rounded-lg group">
                                         <div className="col-span-2 space-y-2">
@@ -2102,6 +2164,7 @@ export default function App() {
                                     </div>
                                 ))}
                             </div>
+                            )}
                         </div>
                     ))}
                 </div>
