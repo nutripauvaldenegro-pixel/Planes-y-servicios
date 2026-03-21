@@ -161,6 +161,21 @@ export default function App() {
     setAdminExpandedSections(newState);
   };
 
+  const [configureExpandedSections, setConfigureExpandedSections] = useState<Record<string, boolean>>({});
+
+  const toggleConfigureSection = (categoryId: string) => {
+    setConfigureExpandedSections(prev => ({
+      ...prev,
+      [categoryId]: !prev[categoryId]
+    }));
+  };
+
+  const collapseAllConfigureSections = () => {
+    const newState: Record<string, boolean> = {};
+    catalog.forEach(cat => newState[cat.id] = false);
+    setConfigureExpandedSections(newState);
+  };
+
   const evaluateItemPrice = (item: ServiceItem, customVars: Record<string, number>): number => {
     if (!item.priceFormula || item.priceFormula.trim() === '' || item.priceFormula === 'basePrice') {
       return item.basePrice;
@@ -976,38 +991,53 @@ export default function App() {
                 <p className="text-gray-500 mt-1">Selecciona los parámetros atómicos para armar el "Pack" exacto.</p>
               </div>
 
-              {packs.length > 0 && (
-                  <div className="flex items-center bg-white border border-gray-300 rounded-lg shadow-sm p-1">
-                      <div className="pl-3 pr-2 flex items-center text-sm font-medium text-gray-600 border-r border-gray-200">
-                          <Package className="w-4 h-4 mr-2 text-indigo-500" />
-                          Cargar Pack
-                      </div>
-                      <select
-                          className="border-0 focus:ring-0 text-sm font-medium text-gray-900 bg-transparent pl-3 pr-8 py-1.5 w-48"
-                          value=""
-                          onChange={e => {
-                              const pack = packs.find(p => p.id === e.target.value);
-                              if (pack) loadPack(pack);
-                          }}
-                      >
-                          <option value="">Selecciona un Pack...</option>
-                          {packs.map(p => (
-                              <option key={p.id} value={p.id}>{p.name}</option>
-                          ))}
-                      </select>
-                  </div>
-              )}
+              <div className="flex items-center space-x-3">
+                <button
+                    onClick={collapseAllConfigureSections}
+                    className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors shadow-sm whitespace-nowrap"
+                >
+                    Colapsar Todo
+                </button>
+                {packs.length > 0 && (
+                    <div className="flex items-center bg-white border border-gray-300 rounded-lg shadow-sm p-1">
+                        <div className="pl-3 pr-2 flex items-center text-sm font-medium text-gray-600 border-r border-gray-200">
+                            <Package className="w-4 h-4 mr-2 text-indigo-500" />
+                            Cargar Pack
+                        </div>
+                        <select
+                            className="border-0 focus:ring-0 text-sm font-medium text-gray-900 bg-transparent pl-3 pr-8 py-1.5 w-48"
+                            value=""
+                            onChange={e => {
+                                const pack = packs.find(p => p.id === e.target.value);
+                                if (pack) loadPack(pack);
+                            }}
+                        >
+                            <option value="">Selecciona un Pack...</option>
+                            {packs.map(p => (
+                                <option key={p.id} value={p.id}>{p.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               <div className="lg:col-span-2 space-y-6">
                 {catalog.map((category) => (
                   <div key={category.id} className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-                      <h2 className="text-lg font-semibold text-gray-800">{category.name}</h2>
-                      <p className="text-sm text-gray-500">{category.description}</p>
+                    <div
+                        className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center space-x-3 cursor-pointer hover:bg-gray-100 transition-colors"
+                        onClick={() => toggleConfigureSection(category.id)}
+                    >
+                      {configureExpandedSections[category.id] !== false ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                      <div>
+                          <h2 className="text-lg font-semibold text-gray-800">{category.name}</h2>
+                          <p className="text-sm text-gray-500">{category.description}</p>
+                      </div>
                     </div>
-                    <div className="divide-y divide-gray-100">
+                    {configureExpandedSections[category.id] !== false && (
+                    <div className="divide-y divide-gray-100 animate-in slide-in-from-top-2 duration-200 fade-in">
                       {category.items.filter(item => !['A-04', 'A-05', 'A-06', 'A-07'].includes(item.id)).map((item) => {
                         const isSelected = !!selectedServices[item.id];
                         const selService = selectedServices[item.id];
@@ -1082,6 +1112,7 @@ export default function App() {
                         );
                       })}
                     </div>
+                    )}
                   </div>
                 ))}
               </div>
