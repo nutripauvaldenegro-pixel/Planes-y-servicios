@@ -155,12 +155,6 @@ export default function App() {
     }));
   };
 
-  const expandAllAdminSections = () => {
-    const newState: Record<string, boolean> = { pdf: true, packs: true };
-    catalog.forEach(cat => newState[cat.id] = true);
-    setAdminExpandedSections(newState);
-  };
-
   const collapseAllAdminSections = () => {
     const newState: Record<string, boolean> = { pdf: false, packs: false };
     catalog.forEach(cat => newState[cat.id] = false);
@@ -1357,13 +1351,7 @@ export default function App() {
                             onClick={collapseAllAdminSections}
                             className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors shadow-sm"
                         >
-                            Ocultar Todo
-                        </button>
-                        <button
-                            onClick={expandAllAdminSections}
-                            className="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 bg-white hover:bg-gray-50 px-3 py-2 rounded-lg transition-colors shadow-sm"
-                        >
-                            Desplegar Todo
+                            Colapsar Todo
                         </button>
                         <button
                             onClick={handleResetCatalog}
