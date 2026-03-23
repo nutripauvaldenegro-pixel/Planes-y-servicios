@@ -1,6 +1,33 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { catalog as defaultCatalog } from './data/catalog';
 import type { ServiceItem, Category, Pack } from './data/catalog';
+
+const API_BASE_URL = 'http://localhost:3001/api/data';
+
+const saveDataToServer = async (filename: string, data: unknown) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${filename}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    if (!response.ok) throw new Error('Network response was not ok');
+  } catch (error) {
+    console.error(`Error saving ${filename}:`, error);
+  }
+};
+
+const loadDataFromServer = async (filename: string) => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/${filename}`);
+    if (response.status === 404) return null; // File doesn't exist yet
+    if (!response.ok) throw new Error('Network response was not ok');
+    return await response.json();
+  } catch (error) {
+    console.error(`Error loading ${filename}:`, error);
+    return null;
+  }
+};
 import { Check, Info, FileText, ChevronRight, ChevronUp, ChevronDown, Calculator, CheckCircle2, Settings, Plus, Trash2, RotateCcw, Save, Edit3, Eye, FolderOpen, Download, Package, Variable, ArrowUp, ArrowDown, EyeOff, AlignLeft, AlignCenter, AlignJustify, Table, Type, Palette, LayoutTemplate, Type as TypeIcon, Image as ImageIcon } from 'lucide-react';
 
 type SelectedService = {
@@ -66,29 +93,11 @@ export type PdfSettings = {
 export default function App() {
   const [activeTab, setActiveTab] = useState<'configure' | 'price' | 'quote' | 'admin' | 'history'>('configure');
 
-  const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>(() => {
-    const saved = localStorage.getItem('cpq-saved-quotes');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing saved quotes', e); }
-    }
-    return [];
-  });
+  const [isLoading, setIsLoading] = useState(true);
 
-  const [catalog, setCatalog] = useState<Category[]>(() => {
-    const saved = localStorage.getItem('cpq-catalog');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing catalog', e); }
-    }
-    return defaultCatalog;
-  });
-
-  const [packs, setPacks] = useState<Pack[]>(() => {
-    const saved = localStorage.getItem('cpq-packs');
-    if (saved) {
-      try { return JSON.parse(saved); } catch (e) { console.error('Error parsing packs', e); }
-    }
-    return [];
-  });
+  const [savedQuotes, setSavedQuotes] = useState<SavedQuote[]>([]);
+  const [catalog, setCatalog] = useState<Category[]>(defaultCatalog);
+  const [packs, setPacks] = useState<Pack[]>([]);
 
   const [selectedServices, setSelectedServices] = useState<Record<string, SelectedService>>({});
   const [modifiers, setModifiers] = useState<Modifiers>({
@@ -105,42 +114,31 @@ export default function App() {
     date: new Date().toISOString().split('T')[0]
   });
 
-  const [pdfSettings, setPdfSettings] = useState<PdfSettings>(() => {
-    const saved = localStorage.getItem('cpq-pdf-settings');
-    const defaults: PdfSettings = {
-      companyName: 'iStudio',
-      companyTagline: 'Propuesta de Servicios',
-      defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.',
-      primaryColor: '#2563eb', // Tailwind blue-600
-      accentColor: '#1d4ed8', // Tailwind blue-700
-      fontFamily: 'font-inter',
-      logoUrl: '',
-      headerLayout: 'split',
-      tableStyle: 'minimal',
-      themeStyle: 'professional',
-      sectionHeaders: 'underlined',
-      showItemCodes: true,
-      showCoverPage: true,
-      defaultTitle: 'Alcance del Proyecto (Modelo Híbrido)',
-      defaultIntroduction: '',
-      layoutBlocks: ['cover', 'header', 'client', 'intro', 'title', 'setup', 'retainer', 'totals', 'footer'],
-      tableColumns: {
-        code: true,
-        name: true,
-        description: false,
-        quantity: true,
-        unitPrice: false,
-        subtotal: true
-      }
-    };
-
-    if (saved) {
-      try {
-          const parsed = JSON.parse(saved);
-          return { ...defaults, ...parsed };
-      } catch (e) { console.error(e); }
+  const [pdfSettings, setPdfSettings] = useState<PdfSettings>({
+    companyName: 'iStudio',
+    companyTagline: 'Propuesta de Servicios',
+    defaultFooter: 'Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.',
+    primaryColor: '#2563eb',
+    accentColor: '#1d4ed8',
+    fontFamily: 'font-inter',
+    logoUrl: '',
+    headerLayout: 'split',
+    tableStyle: 'minimal',
+    themeStyle: 'professional',
+    sectionHeaders: 'underlined',
+    showItemCodes: true,
+    showCoverPage: true,
+    defaultTitle: 'Alcance del Proyecto (Modelo Híbrido)',
+    defaultIntroduction: '',
+    layoutBlocks: ['cover', 'header', 'client', 'intro', 'title', 'setup', 'retainer', 'totals', 'footer'],
+    tableColumns: {
+      code: true,
+      name: true,
+      description: false,
+      quantity: true,
+      unitPrice: false,
+      subtotal: true
     }
-    return defaults;
   });
 
   const [quoteCustom, setQuoteCustom] = useState({
@@ -150,17 +148,34 @@ export default function App() {
     isEditing: false
   });
 
-  const [quoteDraft, setQuoteDraft] = useState<QuoteDraft | null>(() => {
-    const saved = localStorage.getItem('cpq-quote-draft');
-    if (saved) {
+  const [quoteDraft, setQuoteDraft] = useState<QuoteDraft | null>(null);
+
+  useEffect(() => {
+    const fetchInitialData = async () => {
       try {
-        return JSON.parse(saved) as QuoteDraft;
+        const [savedQuotesData, catalogData, packsData, pdfSettingsData, quoteDraftData] = await Promise.all([
+          loadDataFromServer('cpq-saved-quotes'),
+          loadDataFromServer('cpq-catalog'),
+          loadDataFromServer('cpq-packs'),
+          loadDataFromServer('cpq-pdf-settings'),
+          loadDataFromServer('cpq-quote-draft'),
+        ]);
+
+        if (savedQuotesData) setSavedQuotes(savedQuotesData);
+        if (catalogData) setCatalog(catalogData);
+        if (packsData) setPacks(packsData);
+        if (pdfSettingsData) setPdfSettings(prev => ({ ...prev, ...pdfSettingsData }));
+        if (quoteDraftData) setQuoteDraft(quoteDraftData);
+
       } catch (e) {
-        console.error('Error parsing quote draft', e);
+        console.error('Error fetching initial data from server', e);
+      } finally {
+        setIsLoading(false);
       }
-    }
-    return null;
-  });
+    };
+
+    fetchInitialData();
+  }, []);
 
   const [adminPdfEditing, setAdminPdfEditing] = useState(false);
   const [activePaletteTab, setActivePaletteTab] = useState<'brand' | 'typography' | 'layout' | 'components'>('brand');
@@ -410,9 +425,9 @@ export default function App() {
     };
   }, [selectedServices, modifiers, catalog]);
 
-  // Only save to localStorage when explicitly requested
-  const saveCatalogState = (newCatalog: Category[]) => {
-    localStorage.setItem('cpq-catalog', JSON.stringify(newCatalog));
+  // Only save to server when explicitly requested
+  const saveCatalogState = async (newCatalog: Category[]) => {
+    await saveDataToServer('cpq-catalog', newCatalog);
   };
 
   const handleUpdateItem = (categoryId: string, oldItemId: string, updatedItem: ServiceItem) => {
@@ -468,7 +483,7 @@ export default function App() {
     }
   };
 
-  const handleGenerateFinalDocument = () => {
+  const handleGenerateFinalDocument = async () => {
       const newDraft: QuoteDraft = {
           clientInfo: { ...clientInfo },
           selectedServices: { ...selectedServices },
@@ -480,18 +495,18 @@ export default function App() {
       };
 
       setQuoteDraft(newDraft);
-      localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+      await saveDataToServer('cpq-quote-draft', newDraft);
   };
 
-  const handleSaveCategory = () => {
-      saveCatalogState(catalog);
+  const handleSaveCategory = async () => {
+      await saveCatalogState(catalog);
       // Optional: Show some success feedback
-      alert('Cambios del catálogo guardados exitosamente en la memoria del navegador.');
+      alert('Cambios del catálogo guardados exitosamente en el servidor.');
   };
 
-  const handleSavePacks = () => {
-      localStorage.setItem('cpq-packs', JSON.stringify(packs));
-      alert('Packs guardados exitosamente.');
+  const handleSavePacks = async () => {
+      await saveDataToServer('cpq-packs', packs);
+      alert('Packs guardados exitosamente en el servidor.');
   };
 
   const handleCreatePack = () => {
@@ -522,20 +537,20 @@ export default function App() {
       return undefined;
   };
 
-  const handleSavePdfSettings = () => {
-      localStorage.setItem('cpq-pdf-settings', JSON.stringify(pdfSettings));
-      alert('Configuración de PDF guardada exitosamente.');
+  const handleSavePdfSettings = async () => {
+      await saveDataToServer('cpq-pdf-settings', pdfSettings);
+      alert('Configuración de PDF guardada exitosamente en el servidor.');
   };
 
-  const handleResetCatalog = () => {
+  const handleResetCatalog = async () => {
       if (confirm('¿Estás seguro de restaurar el catálogo a sus valores por defecto? Perderás todos los cambios.')) {
           setCatalog(defaultCatalog);
-          localStorage.removeItem('cpq-catalog');
+          await saveDataToServer('cpq-catalog', defaultCatalog);
           setSelectedServices({});
       }
   };
 
-  const handleSaveAndPrint = () => {
+  const handleSaveAndPrint = async () => {
     if (!quoteDraft) {
         alert("Primero debes generar el documento final.");
         return;
@@ -560,13 +575,13 @@ export default function App() {
 
     const newSavedQuotes = [newQuote, ...savedQuotes];
     setSavedQuotes(newSavedQuotes);
-    localStorage.setItem('cpq-saved-quotes', JSON.stringify(newSavedQuotes));
+    await saveDataToServer('cpq-saved-quotes', newSavedQuotes);
 
     // Close edit mode if it was open to ensure it prints clean
     if (quoteDraft.quoteCustom.isEditing) {
       const updatedDraft = { ...quoteDraft, quoteCustom: { ...quoteDraft.quoteCustom, isEditing: false } };
       setQuoteDraft(updatedDraft);
-      localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
+      await saveDataToServer('cpq-quote-draft', updatedDraft);
       // Give React a tick to update the DOM before printing
       setTimeout(() => window.print(), 100);
     } else {
@@ -574,7 +589,7 @@ export default function App() {
     }
   };
 
-  const loadSavedQuote = (quote: SavedQuote) => {
+  const loadSavedQuote = async (quote: SavedQuote) => {
     if (confirm('¿Estás seguro de cargar este presupuesto? Perderás el trabajo actual no guardado en el borrador de Quote.')) {
       // Set the live configuration state to match the loaded quote
       setClientInfo(quote.clientInfo);
@@ -596,17 +611,17 @@ export default function App() {
       };
 
       setQuoteDraft(newDraft);
-      localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+      await saveDataToServer('cpq-quote-draft', newDraft);
 
       setActiveTab('quote');
     }
   };
 
-  const deleteSavedQuote = (id: string) => {
+  const deleteSavedQuote = async (id: string) => {
     if (confirm('¿Estás seguro de eliminar este registro del historial?')) {
       const updatedQuotes = savedQuotes.filter(q => q.id !== id);
       setSavedQuotes(updatedQuotes);
-      localStorage.setItem('cpq-saved-quotes', JSON.stringify(updatedQuotes));
+      await saveDataToServer('cpq-saved-quotes', updatedQuotes);
     }
   };
 
@@ -682,7 +697,7 @@ export default function App() {
               quoteCustom: { ...quoteDraft.quoteCustom, [key]: value }
           };
           setQuoteDraft(updatedDraft);
-          localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
+          saveDataToServer('cpq-quote-draft', updatedDraft);
       };
 
       const renderBlockToolbar = (block: string, index: number) => {
@@ -838,7 +853,7 @@ export default function App() {
                                           if (!isGlobalEditing && mode === 'quote' && quoteDraft) {
                                               const newDraft = {...quoteDraft, clientInfo: {...quoteDraft.clientInfo, name: e.target.value}};
                                               setQuoteDraft(newDraft);
-                                              localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+                                              saveDataToServer('cpq-quote-draft', newDraft);
                                           }
                                       }}
                                       className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-lg font-semibold text-gray-900 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
@@ -852,7 +867,7 @@ export default function App() {
                                           if (!isGlobalEditing && mode === 'quote' && quoteDraft) {
                                               const newDraft = {...quoteDraft, clientInfo: {...quoteDraft.clientInfo, company: e.target.value}};
                                               setQuoteDraft(newDraft);
-                                              localStorage.setItem('cpq-quote-draft', JSON.stringify(newDraft));
+                                              saveDataToServer('cpq-quote-draft', newDraft);
                                           }
                                       }}
                                       className="w-full border border-transparent hover:border-blue-200 hover:bg-blue-50 rounded px-2 py-1 text-gray-600 focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-colors"
@@ -1045,7 +1060,7 @@ export default function App() {
       };
 
       return (
-          <div className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${pdfSettings.fontFamily} ${pdfSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${isLocalEditing ? 'ring-4 ring-blue-100 relative' : ''} ${isGlobalEditing ? 'min-h-[800px]' : ''}`}>
+          <div className={`bg-white shadow-lg border border-gray-200 mx-auto max-w-4xl p-10 print:shadow-none print:border-none print:p-0 print:max-w-none print:w-full print:m-0 ${activeSettings.fontFamily} ${activeSettings.themeStyle === 'creative' ? 'rounded-2xl' : ''} ${isLocalEditing ? 'ring-4 ring-blue-100 relative' : ''} ${isGlobalEditing ? 'min-h-[800px]' : ''}`}>
               {isLocalEditing && (
                   <div className="absolute -top-4 -right-4 bg-blue-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-md z-10 print:hidden">
                       MODO EDICIÓN VISUAL
@@ -1056,10 +1071,19 @@ export default function App() {
                       EDITOR ESTRUCTURAL DE PLANTILLA
                   </div>
               )}
-              {pdfSettings.layoutBlocks.map((block, index) => renderBlock(block, index))}
+              {activeSettings.layoutBlocks.map((block, index) => renderBlock(block, index))}
           </div>
       );
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center space-y-4">
+        <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+        <p className="text-gray-500 font-medium">Conectando con el servidor...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 font-sans print:bg-white">
@@ -2361,14 +2385,14 @@ export default function App() {
                   Generar documento Final (Q)
                 </button>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                       if (!quoteDraft) return;
                       const updatedDraft = {
                           ...quoteDraft,
                           quoteCustom: { ...quoteDraft.quoteCustom, isEditing: !quoteDraft.quoteCustom.isEditing }
                       };
                       setQuoteDraft(updatedDraft);
-                      localStorage.setItem('cpq-quote-draft', JSON.stringify(updatedDraft));
+                      await saveDataToServer('cpq-quote-draft', updatedDraft);
                   }}
                   disabled={!quoteDraft}
                   className={`border font-medium py-2 px-4 rounded-lg flex items-center transition-colors shadow-sm disabled:opacity-50 ${quoteDraft?.quoteCustom.isEditing ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-gray-300 hover:bg-gray-50 text-gray-700'}`}

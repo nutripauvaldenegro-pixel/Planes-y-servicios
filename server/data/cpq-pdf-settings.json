@@ -1,0 +1,36 @@
+{
+  "companyName": "iStudio",
+  "companyTagline": "Propuesta de Servicios",
+  "defaultFooter": "Este documento es una estimación generada automáticamente por el sistema CPQ de iStudio.\nValores expresados en Pesos Chilenos (CLP). Sujetos a confirmación final.",
+  "primaryColor": "#2563eb",
+  "accentColor": "#1d4ed8",
+  "fontFamily": "font-inter",
+  "logoUrl": "",
+  "headerLayout": "split",
+  "tableStyle": "minimal",
+  "themeStyle": "professional",
+  "sectionHeaders": "underlined",
+  "showItemCodes": true,
+  "showCoverPage": true,
+  "defaultTitle": "Alcance del Proyecto (Modelo Híbrido)",
+  "defaultIntroduction": "",
+  "layoutBlocks": [
+    "cover",
+    "header",
+    "client",
+    "intro",
+    "title",
+    "setup",
+    "retainer",
+    "totals",
+    "footer"
+  ],
+  "tableColumns": {
+    "code": true,
+    "name": true,
+    "description": false,
+    "quantity": true,
+    "unitPrice": false,
+    "subtotal": true
+  }
+}
