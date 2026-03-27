@@ -1,0 +1,14 @@
+{
+  "id": "admin",
+  "name": "Administración, Legal y Modificadores Comerciales",
+  "description": "Costo de la gestión interna y protección de la empresa.",
+  "items": [
+    { "id": "A-01", "name": "Fee de Project Management", "description": "Horas de coordinación entre socios, Gabriel y cliente", "basePrice": 50000, "unit": "hora", "recurring": false },
+    { "id": "A-02", "name": "Redacción de Términos y Condiciones / Políticas de Privacidad web", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "A-03", "name": "Redacción de Acta de Entrega y Aceptación de Hitos (Para liberar pagos)", "description": "", "basePrice": 50000, "unit": "global", "recurring": false },
+    { "id": "A-04", "name": "Recargo por Urgencia", "description": "Multiplicador de precio por proyectos 'para ayer'", "basePrice": 1.5, "unit": "multiplicador", "recurring": false },
+    { "id": "A-05", "name": "Tasa de riesgo/éxito (Success Fee para modelo Startups)", "description": "", "basePrice": 0.1, "unit": "porcentaje", "recurring": false },
+    { "id": "A-06", "name": "Recargo financiero por fraccionamiento de pagos (Modelo Híbrido)", "description": "", "basePrice": 0.05, "unit": "porcentaje", "recurring": false },
+    { "id": "A-07", "name": "Comisión/Markup por gestión de compras de terceros (Licencias, plantillas)", "description": "", "basePrice": 0.15, "unit": "porcentaje", "recurring": false }
+  ]
+}
