@@ -1,0 +1,12 @@
+{
+  "id": "support",
+  "name": "Soporte, Capacitación y Retainer Mensual",
+  "description": "Costo de mantener al cliente feliz y facturando a largo plazo.",
+  "items": [
+    { "id": "S-01", "name": "Capacitación de uso de herramientas para el cliente o su personal", "description": "", "basePrice": 40000, "unit": "hora", "recurring": false },
+    { "id": "S-02", "name": "Elaboración de Manual de Usuario o Video Tutoriales", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "S-03", "name": "Soporte técnico correctivo mensual", "description": "Bolsa de horas para arreglar fallos", "basePrice": 150000, "unit": "mensual", "recurring": true },
+    { "id": "S-04", "name": "Mantenimiento preventivo mensual", "description": "Actualización de versión, plugins, librerías", "basePrice": 120000, "unit": "mensual", "recurring": true },
+    { "id": "S-05", "name": "Gestión y monitoreo de Backups (Copias de seguridad recurrentes)", "description": "", "basePrice": 50000, "unit": "mensual", "recurring": true }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "id": "620100-dev",
+  "name": "Desarrollo y Programación",
+  "description": "Costo de ejecución técnica (Gabriel Quezada).",
+  "items": [
+    { "id": "P-01", "name": "Setup de entorno de desarrollo y repositorios (Git)", "description": "", "basePrice": 50000, "unit": "global", "recurring": false },
+    { "id": "P-02", "name": "Modelado y estructuración de Base de Datos", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "P-03", "name": "Maquetación Frontend estática (HTML/CSS/JS)", "description": "", "basePrice": 40000, "unit": "pantalla", "recurring": false },
+    { "id": "P-04", "name": "Desarrollo de lógica Frontend (React, Angular, etc.)", "description": "", "basePrice": 200000, "unit": "global", "recurring": false },
+    { "id": "P-05", "name": "Desarrollo Backend/API (Lógica de servidor)", "description": "", "basePrice": 80000, "unit": "módulo/CRUD", "recurring": false },
+    { "id": "P-06", "name": "Desarrollo de Módulo de Autenticación (Login/Registro/Roles)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "P-07", "name": "Desarrollo de Panel de Administración (Backoffice para el cliente)", "description": "", "basePrice": 250000, "unit": "global", "recurring": false },
+    { "id": "P-08", "name": "Integración de Pasarela de Pagos (Webpay, MercadoPago, etc.)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "P-09", "name": "Integración de APIs de terceros (CRM, ERP, Facturación electrónica, Maps)", "description": "", "basePrice": 120000, "unit": "integración", "recurring": false },
+    { "id": "P-10", "name": "Acondicionamiento Marca Blanca", "description": "Eliminar rastros de Impulsa Studio para agencias B2B", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "P-11", "name": "Migración de datos históricos del cliente al nuevo sistema", "description": "", "basePrice": 200000, "unit": "global", "recurring": false }
+  ]
+}

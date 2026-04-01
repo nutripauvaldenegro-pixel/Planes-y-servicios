@@ -1,0 +1,16 @@
+{
+  "id": "620200",
+  "name": "Consultoría, Estrategia y Diagnóstico",
+  "description": "Costo de pensar, analizar y planificar.",
+  "items": [
+    { "id": "C-01", "name": "Sesión de diagnóstico comercial inicial", "description": "", "basePrice": 50000, "unit": "hora", "recurring": false },
+    { "id": "C-02", "name": "Auditoría de madurez digital actual del cliente", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "C-03", "name": "Levantamiento de requerimientos técnicos (ERS)", "description": "", "basePrice": 200000, "unit": "global", "recurring": false },
+    { "id": "C-04", "name": "Mapeo de arquitectura de datos y procesos actuales (Especial Pymes)", "description": "", "basePrice": 250000, "unit": "global", "recurring": false },
+    { "id": "C-05", "name": "Diseño del nuevo flujo de procesos optimizado", "description": "", "basePrice": 200000, "unit": "global", "recurring": false },
+    { "id": "C-06", "name": "Redacción de Documento de Alcance del Proyecto (EDT)", "description": "", "basePrice": 150000, "unit": "global", "recurring": false },
+    { "id": "C-07", "name": "Definición de roadmap y cronograma de hitos", "description": "", "basePrice": 100000, "unit": "global", "recurring": false },
+    { "id": "C-08", "name": "Sesión de consultoría estratégica/negocios mensual", "description": "Retainer", "basePrice": 300000, "unit": "mensual", "recurring": true },
+    { "id": "C-09", "name": "Evaluación de viabilidad, riesgo y Equity (Modelo Startups)", "description": "", "basePrice": 250000, "unit": "global", "recurring": false }
+  ]
+}
